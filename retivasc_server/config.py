@@ -16,7 +16,7 @@ FILE = ROOT / "retivasc.local.json"
 
 def load() -> dict:
     try:
-        return json.loads(FILE.read_text(encoding="utf-8"))
+        return json.loads(FILE.read_text(encoding="utf-8-sig"))  # PowerShell 5.1 writes a BOM
     except (OSError, ValueError):
         return {}
 

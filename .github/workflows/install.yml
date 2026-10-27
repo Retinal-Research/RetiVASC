@@ -1,0 +1,38 @@
+# A fresh install on each platform, the way a user does it: the installer, then the server tests.
+# The installer ends with the self-test (full AutoMorph v2 on the sample photos vs the reference).
+# Hosted runners have no NVIDIA GPU, so this checks the installers, the CPU path and, on macOS,
+# Apple silicon; NVIDIA is checked on real machines. Runs by hand and for each release.
+name: install
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install (Linux)
+        if: runner.os == 'Linux'
+        run: ./install.sh cpu
+      - name: Install (macOS, detected)
+        if: runner.os == 'macOS'
+        run: ./install.sh
+      - name: Install (Windows)
+        if: runner.os == 'Windows'
+        run: powershell -ExecutionPolicy Bypass -File install.ps1 -Gpu cpu
+      - name: Devices and server tests
+        shell: bash
+        run: |
+          PY=.venv/bin/python; [ -x "$PY" ] || PY=.venv/Scripts/python.exe
+          "$PY" -m retivasc_server devices
+          "$PY" -m pytest retivasc_server/tests -q

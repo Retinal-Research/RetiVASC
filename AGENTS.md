@@ -11,7 +11,7 @@ The time budget is about three minutes of commands. Downloads add to it:
 | The user wants | Deploy | Needs |
 |---|---|---|
 | To try it, or a demo on one computer | **A. Browser only** | Python 3 (any), Node.js ≥ 20, Chrome/Edge with WebGPU |
-| A shared service for a lab, results identical to AutoMorph | **B. Server** | Python 3.12, Node.js ≥ 20, an NVIDIA GPU with a current driver (CPU works, slowly) |
+| A shared service for a lab, results identical to AutoMorph | **B. Server** | Node.js ≥ 20, an NVIDIA GPU with a current driver (CPU works, slowly) |
 | A server on a Linux host without internet | **C. Docker** | Docker with the NVIDIA Container Toolkit on the host; a machine with internet to build the image |
 
 If unsure, ask the user. B and C serve the web UI from A as well.
@@ -21,7 +21,7 @@ Preflight checks:
 ```bash
 git --version
 node --version            # v20 or newer
-python --version          # B and C: 3.12.x (Windows: py -3.12 --version)
+python --version          # A only: any Python 3. B needs none: the installer gets Python 3.12 through uv
 nvidia-smi                # B and C with a GPU: driver present, note free memory (needs about 6 GB)
 ```
 
@@ -58,24 +58,30 @@ start.bat
 ### Linux or macOS
 
 ```bash
-./install.sh nvidia                                           # or: cpu | mac
+./install.sh                                                  # detects mac / nvidia / cpu; or name one
 .venv/bin/python -m retivasc_server adduser admin --admin --password '<choose one>'
-.venv/bin/python -m retivasc_server serve
+./start.sh
 ```
+
+- macOS needs Apple silicon (M1 or later): PyTorch 2.7 has no Intel-Mac builds, and the installer stops there with that message. AutoMorph runs on the Apple GPU (`mps`); the few operators MPS lacks fall back to the CPU (`PYTORCH_ENABLE_MPS_FALLBACK=1` is set for it).
+- Linux with an NVIDIA card needs a driver that supports CUDA 12.8 (`nvidia-smi` shows "CUDA Version: 12.8" or higher). AMD cards with ROCm also work, after reinstalling torch from the ROCm index; PyTorch reports them as `cuda`.
+- The Neural Engine of Apple chips and other NPUs cannot run PyTorch models; they are not used.
 
 ### What the installer does
 
 The installer does the following, so you can repeat any step by hand:
-1. Creates `.venv` with Python 3.12. Nothing is installed system-wide.
+1. Creates `.venv` with Python 3.12 using [uv](https://docs.astral.sh/uv/), installing uv into the user's `~/.local/bin` first if it is missing. uv downloads its own Python, so no system Python, conda environment or PATH entry is used or changed. Packages are installed with `uv pip install --python .venv/...`; the venv has no pip of its own.
 2. Downloads both weight packages: `python tools/release.py fetch`.
 3. Installs PyTorch 2.7.1. CUDA 12.8 wheels cover current NVIDIA cards, including the RTX 50 series; there are also CPU and macOS builds. Then it installs `requirements-server.txt`.
-4. Writes `retivasc.local.json` from `retivasc.local.example.json`, setting `python`, `gpu_python` and `server.device`.
+4. Writes `retivasc.local.json` from `retivasc.local.example.json`, setting `python`, `gpu_python` and `server.device` (`auto`, or `cpu` when installed for CPU).
 5. Builds the web UI (`npm ci && npx vite build`) if `webui/dist` is missing.
 6. Runs the acceptance self-test.
 
 The self-test must print `SELFTEST PASSED` (exit 0). It runs the complete AutoMorph v2 on the six sample photographs (about 45 s on a GPU) and compares every quality probability and all 72 features with `retivasc_server/reference.json`:
 - grades must match exactly;
-- values must agree within 1e-3.
+- values must agree within 1e-3 (relative) on an NVIDIA GPU, as the reference was made on one; within 1e-2 on the CPU or an Apple GPU, whose arithmetic rounds differently inside the networks and moves a few segmented pixels (the CPU differs by up to 1.4e-3 on the samples).
+
+`selftest --device cpu` (or `mps`, `cuda:1`) checks one device. Results from different kinds of device are close but not identical, so run all photos of one study on the same kind of device.
 
 If it fails, stop and report the printed differences. Do not hand over the server.
 
@@ -85,7 +91,7 @@ If it fails, stop and report the printed differences. Do not hand over the serve
 curl -s http://127.0.0.1:8080/api/server -b cookies.txt -c cookies.txt   # 401 in accounts mode until signed in
 curl -s -X POST http://127.0.0.1:8080/api/login -H 'Content-Type: application/json' \
      -d '{"name":"admin","password":"<the password>"}' -c cookies.txt
-curl -s http://127.0.0.1:8080/api/server -b cookies.txt                 # {"version":..., "device":"cuda", ...}
+curl -s http://127.0.0.1:8080/api/server -b cookies.txt                 # {"version":..., "device":"auto", "devices":[...], ...}
 ```
 
 Then open http://localhost:8080, sign in, and run *Full analysis on the server* on a sample photograph. It takes about 50 s and shows a grade, four images and 72 values.
@@ -140,7 +146,7 @@ Machine-specific settings live in `retivasc.local.json` at the repository root. 
 | `server.port` | | Port of the web UI and API (`serve --port` overrides it) | `8080` |
 | `server.data_dir` | | Accounts, jobs, results, `access.log` | `work/` |
 | `server.retention_days` | | Finished jobs are deleted after this many days | `30` |
-| `server.device` | | `cuda`, `cpu` or `mps` | `cuda` |
+| `server.device` | | The default device: `auto` (when each job starts, the NVIDIA/AMD GPU with the most free memory, else the Apple GPU, else the CPU), or a fixed `cuda:N`, `mps` or `cpu`. Users can override it per job in the web UI | `auto` |
 | `server.allowed_folders` | | Server folders users may analyse in place | `[]` |
 | `server.ssl_certfile`, `server.ssl_keyfile` | | Serve HTTPS | none |
 | | `RETIVASC_SERVER` | Where the Vite dev server proxies `/api` | `http://127.0.0.1:8080` |
@@ -157,10 +163,11 @@ Machine-specific settings live in `retivasc.local.json` at the repository root. 
 | `CPU only` in the top bar | WebGPU is unavailable (old browser, remote desktop, blocked GPU). It still works, slowly. Try Chrome or Edge on the machine itself |
 | Self-test: grades differ, or features off by more than 1e-3 | The wrong torch build, or a GPU that cannot run it. Check `python -c "import torch; print(torch.__version__, torch.cuda.is_available())"` in `.venv` |
 | `CUDA error: no kernel image is available` | The torch build is too old for the GPU, e.g. cu118 on an RTX 50-series card. Reinstall with the cu128 wheels as in `install.ps1` |
-| The wrong GPU is used | Set `gpu_env` to `CUDA_DEVICE_ORDER=PCI_BUS_ID;CUDA_VISIBLE_DEVICES=<index>` |
+| The wrong GPU is used | `python -m retivasc_server devices` lists what the server sees and what `auto` picks. Fix one with `server.device` (`cuda:N`), or hide cards with `gpu_env` `CUDA_DEVICE_ORDER=PCI_BUS_ID;CUDA_VISIBLE_DEVICES=<index>` (indices then count the visible cards only) |
 | A job failed with exit code 3221225477 | AutoMorph crashed natively, usually because GPU memory is shared with another process. The server retries once; free the GPU and resubmit |
 | Port already in use | Another server instance is running. Stop it, or use `serve --port 8081` |
-| `install.ps1`: `py` not found | Install Python 3.12 from python.org with the launcher, or create `.venv` by hand and rerun |
+| Installer: installing uv fails | No internet access to astral.sh, or a proxy blocks it. Install uv by another route (`pip install uv`, `winget install astral-sh.uv`), or create `.venv` with any Python 3.12 by hand and rerun |
+| Installer: "Node.js 20 or newer is required" | Install Node.js LTS from nodejs.org, open a new terminal, rerun |
 
 ## Architecture, for changes
 

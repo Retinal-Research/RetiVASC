@@ -232,3 +232,26 @@ def test_automorph_crash_is_retried_once(server):
     j = a.post("/api/jobs/analyze", files=[("files", ("2_right_macula.tif", photo_bytes(2)))]).json()
     run_queue(app)
     assert a.get(f"/api/jobs/{j['id']}").json()["status"] == "failed"
+
+
+def test_device_choice(server, monkeypatch):
+    from retivasc_server import devices
+
+    app, _ = server
+    two = [{"id": "cuda:0", "name": "A", "memory_gb": 16.0, "free_gb": 2.0},
+           {"id": "cuda:1", "name": "B", "memory_gb": 24.0, "free_gb": 20.0}, devices.CPU]
+    monkeypatch.setattr(devices, "_cache", two)
+    used = []
+    app.state.store.runner = lambda root, device: (used.append(device), fake_automorph(root, device))
+    c = client(app, "alice", "password-a")
+    assert [d["id"] for d in c.get("/api/server").json()["devices"]] == ["cuda:0", "cuda:1", "cpu"]
+    assert c.post("/api/jobs/analyze", files=[("files", ("a.tif", photo_bytes(1)))], data={"device": "cuda:7"}).status_code == 400
+    assert c.post("/api/jobs/analyze", files=[("files", ("a.tif", photo_bytes(1)))], data={"device": "cuda:0"}).status_code == 200
+    j = c.post("/api/jobs/analyze", files=[("files", ("b.tif", photo_bytes(2)))]).json()
+    run_queue(app)
+    assert used == ["cuda:0", "auto"]  # no choice: the server's own setting (resolved by AutoMorph's caller)
+    assert c.get(f"/api/jobs/{j['id']}").json()["params"]["ran_on"] == "auto"
+    # "auto" means the GPU with the most free memory; Apple's GPU before the CPU; the CPU last
+    assert devices.best(two) == "cuda:1"
+    assert devices.best([{"id": "mps", "name": "Apple"}, devices.CPU]) == "mps"
+    assert devices.best([devices.CPU]) == "cpu"

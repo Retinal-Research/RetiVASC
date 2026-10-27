@@ -6,7 +6,8 @@
   users                list users
   mode [open|accounts] show or switch how people get in: "open" = anyone, each browser a private
                        guest session (public beta); "accounts" = sign in. Restart the server after.
-  selftest             run AutoMorph v2 on the bundled sample photos and compare with the reference results
+  devices              list the inference devices (GPUs first, CPU last) and which one "auto" picks now
+  selftest [--device D]  run AutoMorph v2 on the bundled sample photos and compare with the reference results
 """
 
 from __future__ import annotations
@@ -35,7 +36,9 @@ def main(argv=None) -> int:
     sub.add_parser("users")
     q = sub.add_parser("mode")
     q.add_argument("value", nargs="?", choices=["open", "accounts"])
+    sub.add_parser("devices")
     q = sub.add_parser("selftest")
+    q.add_argument("--device", help='e.g. cuda:1, mps or cpu (default: "device" in retivasc.local.json, else auto)')
     q.add_argument("--write-reference", action="store_true", help="store this machine's results as the reference")
     a = p.parse_args(argv)
     s = load()
@@ -63,9 +66,20 @@ def main(argv=None) -> int:
         else:
             print(s.auth)
         return 0
+    if a.cmd == "devices":
+        from . import devices
+
+        found = devices.probe()
+        for d in found:
+            mem = f"  {d['free_gb']} of {d['memory_gb']} GB free" if "memory_gb" in d else ""
+            print(f"{d['id']:8} {d['name']}{mem}")
+        print(f'auto -> {devices.best(found)}   (configured: "{s.device}")')
+        return 0
     if a.cmd == "selftest":
         from .selftest import run
 
+        if a.device:
+            s.device = a.device
         return run(s, write_reference=a.write_reference)
     if a.cmd == "serve":
         import uvicorn

@@ -94,3 +94,22 @@ export function FilePick({ label, id, onPick, accept = '.xlsx' }: { label: strin
     </label>
   );
 }
+
+/** Where the server runs AutoMorph: by default the GPU with the most free memory when the job starts. */
+export function DevicePick({ value, onPick }: { value: string; onPick: (device: string) => void }) {
+  const { info } = useServer();
+  const list = info?.devices ?? [];
+  return (
+    <label className="sfield">
+      <span>Device</span>
+      <select className="select" value={value} onChange={(e) => onPick(e.target.value)}>
+        <option value="">Best GPU (automatic)</option>
+        {list.map((d) => (
+          <option key={d.id} value={d.id}>
+            {d.name}{d.memory_gb ? ` · ${d.free_gb} of ${d.memory_gb} GB free` : ''}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}

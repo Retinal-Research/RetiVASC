@@ -21,6 +21,7 @@ export async function serverAnalyze(ctx: RunContext): Promise<Record<string, Nod
   const { name, bytes } = await readSource(src.source);
   const form = new FormData();
   form.append('files', new File([bytes], name));
+  form.append('device', text(ctx.params.device));
   report(ctx, 'Sending the photo', 0);
   const job = await upload('/jobs/analyze', form, (f) => report(ctx, 'Sending the photo', f * 0.05));
   const done = await waitJob(job.id, (p) => report(ctx, p.step, p.fraction));
@@ -61,6 +62,7 @@ export async function studySheet(ctx: RunContext): Promise<Record<string, NodeVa
   if (previous) form.append('previous', previous);
   form.append('out_name', outName);
   form.append('strict', ctx.params.strict ? 'true' : 'false');
+  form.append('device', text(ctx.params.device));
   if (run.source === 'upload') {
     for (const f of getPicked(run.pickId) ?? []) form.append('files', f, f.webkitRelativePath || f.name);
   } else if (run.source === 'server') {

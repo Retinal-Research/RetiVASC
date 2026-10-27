@@ -90,14 +90,18 @@ def load_manifest(data_root: Path | str) -> dict:
     return json.loads((Path(data_root) / MANIFEST).read_text(encoding="utf-8"))
 
 
-def run(data_root: Path | str, device: str = "cuda") -> None:
+def env() -> dict[str, str]:
+    # on Apple silicon, run the few operators MPS lacks on the CPU instead of failing
+    return {"PYTORCH_ENABLE_MPS_FALLBACK": "1", **os.environ, **GPU_ENV, "PYTHONPATH": str(AUTOMORPH / "src")}
+
+
+def run(data_root: Path | str, device: str = "auto") -> None:
     data_root = Path(data_root)
-    env = {**os.environ, **GPU_ENV, "PYTHONPATH": str(AUTOMORPH / "src")}
     cmd = [str(GPU_PY), "-m", "automorph_v2", "run", str(data_root), "--device", device, "--fresh", "--progress", "plain"]
     with open(data_root / LOG, "w", encoding="utf-8") as log:
         log.write(" ".join(cmd) + "\n")
         log.flush()
-        proc = subprocess.run(cmd, cwd=str(AUTOMORPH), env=env, stdout=log, stderr=subprocess.STDOUT)
+        proc = subprocess.run(cmd, cwd=str(AUTOMORPH), env=env(), stdout=log, stderr=subprocess.STDOUT)
     if proc.returncode != 0:
         raise RuntimeError(f"AutoMorph v2 failed (exit {proc.returncode}); see {data_root / LOG}")
 

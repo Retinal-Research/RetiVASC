@@ -30,7 +30,7 @@ Photographs are never sent anywhere else in either mode.
 
 ## Quick start
 
-You need Git, Python 3.12, Node.js 20 or newer, and Chrome or Edge. On Windows, clone into a short folder such as `C:\RetiVASC`; some model files sit in deep folders, and Windows limits path length.
+You need Git, Node.js 20 or newer, and Chrome or Edge. The browser version also needs any Python 3 to run the download script. The server installer needs no Python at all: it uses [uv](https://docs.astral.sh/uv/), installing it first if it is missing, to fetch a private Python 3.12 into the project folder, so nothing already on the machine is changed. On Windows, clone into a short folder such as `C:\RetiVASC`; some model files sit in deep folders, and Windows limits path length.
 
 The model weights are too large for git. They are attached to the GitHub release, and `tools/release.py` downloads them and checks each file against the SHA-256 lists kept in this repository.
 
@@ -52,7 +52,9 @@ powershell -ExecutionPolicy Bypass -File install.ps1          # downloads 2.5 GB
 start.bat                                                      # http://localhost:8080
 ```
 
-**Lab server, Linux or macOS:** run `./install.sh nvidia` (or `cpu`, or `mac`), add a user the same way, then start the server with `.venv/bin/python -m retivasc_server serve`.
+**Lab server, Linux or macOS:** run `./install.sh` (it detects an Apple-silicon Mac, an NVIDIA GPU or neither), add a user the same way, then start the server with `./start.sh`.
+
+The server runs AutoMorph on a GPU: an NVIDIA card (AMD through ROCm also works) or the GPU of an Apple-silicon Mac. By default each job takes the GPU with the most free memory when it starts; the CPU is used only when there is no GPU. Each server step in the web page has a *Device* menu to choose another one, and `python -m retivasc_server devices` lists them.
 
 The installer finishes with a self-test. The self-test runs the full pipeline on six sample photographs and compares every result with reference values. If it fails, the installation does not reproduce AutoMorph and should not be used.
 

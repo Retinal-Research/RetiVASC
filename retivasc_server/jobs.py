@@ -29,7 +29,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import automorph
+from . import automorph, devices
 from .automorph import FEATURES, load_manifest, stage
 
 # AutoMorph log lines look like "[M2 PROGRESS] M2 artery-vein-inference-write: 50/1238 images (4.0%) | …"
@@ -65,11 +65,12 @@ class Job:
 
 
 class JobStore:
-    def __init__(self, jobs_dir: Path, device: str = "cuda", runner=None):
+    def __init__(self, jobs_dir: Path, device: str = "auto", runner=None):
         self.dir = jobs_dir
         self.dir.mkdir(parents=True, exist_ok=True)
         self.device = device
-        self.runner = runner or automorph.run  # replaced in tests
+        self.runner = runner or automorph.run  # replaced in tests, which then skip probing devices
+        self.resolve = devices.resolve if runner is None else (lambda d: d)
         self.lock = threading.Lock()
         self.queue: deque[str] = deque()
         self.wake = threading.Event()
@@ -213,12 +214,15 @@ class JobStore:
         job.finished = _now()
         self.save(job)
 
-    def _run_automorph(self, images_root: Path, data_root: Path, log, stager=stage) -> dict:
+    def _run_automorph(self, job: Job, images_root: Path, data_root: Path, log, stager=stage) -> dict:
         manifest = stager(images_root, data_root)
-        log.write(f"{_now()} staged {len(manifest['files'])} photos; running AutoMorph v2\n")
+        device = self.resolve(job.params.get("device") or self.device)
+        job.params["ran_on"] = device
+        self.save(job)
+        log.write(f"{_now()} staged {len(manifest['files'])} photos; running AutoMorph v2 on {device}\n")
         log.flush()
         try:
-            self.runner(data_root, self.device)
+            self.runner(data_root, device)
         except RuntimeError as e:
             # an AutoMorph stage occasionally dies without a Python error (seen once: M2 exited
             # with an access violation while the GPU was shared); run it again once, from scratch
@@ -226,13 +230,13 @@ class JobStore:
             log.flush()
             data_root.rename(data_root.with_name(f"{data_root.name}_failed_{int(time.time())}"))
             manifest = stager(images_root, data_root)
-            self.runner(data_root, self.device)
+            self.runner(data_root, device)
         log.write(f"{_now()} AutoMorph v2 finished\n")
         return manifest
 
     def _analyze(self, job: Job, jdir: Path, log) -> dict:
         data_root = jdir / "automorph"
-        manifest = self._run_automorph(jdir / "input", data_root, log)
+        manifest = self._run_automorph(job, jdir / "input", data_root, log)
         outputs = automorph.load(data_root)
         photos = []
         for e in manifest["files"]:
@@ -269,7 +273,7 @@ class JobStore:
             log.write(f"{_now()} reusing the AutoMorph run of job {src.id}\n")
         else:
             data_root = jdir / "automorph"
-            self._run_automorph(images_root, data_root, log, lambda src, dst: sheet_stage(scan(src), dst))
+            self._run_automorph(job, images_root, data_root, log, lambda src, dst: sheet_stage(scan(src), dst))
         (jdir / "sheet.started").touch()
         out = jdir / "out" / p["out_name"]
         argv = ["build", "--images", str(images_root), "--template", p["template"], "--data-root", str(data_root), "--out", str(out)]

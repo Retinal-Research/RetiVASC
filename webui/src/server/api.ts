@@ -3,7 +3,9 @@
 // Without a server the canvas still works: browser steps run locally, server steps say so.
 
 export interface Account { name: string; admin: boolean; mode?: 'accounts' | 'open' }
-export interface ServerInfo { version: string; mode?: 'accounts' | 'open'; queued: number; running: boolean; allowed_folders: string[]; retention_days: number; device: string; features?: { sheet: boolean } }
+export interface ServerInfo { version: string; mode?: 'accounts' | 'open'; queued: number; running: boolean; allowed_folders: string[]; retention_days: number; device: string; devices?: ServerDevice[]; features?: { sheet: boolean } }
+/** An inference device on the server; GPUs come first, the CPU last. */
+export interface ServerDevice { id: string; name: string; memory_gb?: number; free_gb?: number }
 export interface JobProgress { step: string; fraction: number | null }
 export interface JobView {
   id: string; owner: string; kind: 'analyze' | 'sheet'; title: string; created: string;

@@ -15,7 +15,7 @@ class Settings:
     port: int = 8080
     data_dir: Path = config.ROOT / "work"
     retention_days: int = 30
-    device: str = "cuda"
+    device: str = "auto"  # AutoMorph picks cuda, then Apple mps, then cpu
     allowed_folders: list[Path] = field(default_factory=list)  # server folders users may analyse in place
     ssl_certfile: str = ""
     ssl_keyfile: str = ""

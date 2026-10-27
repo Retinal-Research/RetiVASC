@@ -3,8 +3,11 @@ photos and compare quality probabilities and the 72 features with the reference 
 recorded on the development workstation (retivasc_server/reference.json).
 
 Different GPUs, drivers or CPU builds can change the last digits of a result, so the check
-allows a tiny tolerance and reports the largest difference it saw. The grade and the
-gradable call must match exactly.
+allows a tolerance and reports the largest difference it saw. The grade and the gradable call
+must match exactly. The reference comes from an NVIDIA GPU: other NVIDIA cards must agree within
+0.1%. The CPU and Apple GPUs round differently inside the networks, which moves a few segmented
+pixels and so the features slightly (the CPU: up to 0.14% on the samples), so they are held to 1%.
+Keep one study on one kind of device.
 """
 
 from __future__ import annotations
@@ -16,14 +19,15 @@ import tempfile
 import time
 from pathlib import Path
 
-from . import automorph, config
+from . import automorph, config, devices
 from .automorph import load_manifest, stage
 from .settings import Settings
 
 SAMPLES = config.ROOT / "webui" / "public" / "samples"
 REFERENCE = Path(__file__).with_name("reference.json")
 PROB_TOL = 1e-3   # absolute, on probabilities
-FEAT_TOL = 1e-3   # relative, on features
+FEAT_TOL = 1e-3   # relative, on features, on an NVIDIA GPU like the reference
+FEAT_TOL_OTHER = 1e-2  # relative, on features, on the CPU or an Apple GPU
 
 
 def _results(data_root: Path) -> dict:
@@ -41,8 +45,8 @@ def _results(data_root: Path) -> dict:
     return res
 
 
-def _compare(got: dict, ref: dict) -> tuple[list[str], float, float]:
-    problems, worst_p, worst_f = [], 0.0, 0.0
+def _compare(got: dict, ref: dict, feat_tol: float = FEAT_TOL) -> tuple[list[str], float, float]:
+    problems, worst_p, worst_f, worst_where = [], 0.0, 0.0, ""
     for name, r in ref.items():
         g = got.get(name)
         if g is None:
@@ -64,11 +68,13 @@ def _compare(got: dict, ref: dict) -> tuple[list[str], float, float]:
             if (rv is None) != (gv is None):
                 problems.append(f"{name}: {k} missing on one side")
             elif rv is not None:
-                worst_f = max(worst_f, abs(gv - rv) / max(abs(rv), 1e-9))
+                d = abs(gv - rv) / max(abs(rv), 1e-9)
+                if d > worst_f:
+                    worst_f, worst_where = d, f"{k} of {name}"
     if worst_p > PROB_TOL:
         problems.append(f"quality probabilities differ by up to {worst_p:.2e}")
-    if worst_f > FEAT_TOL:
-        problems.append(f"features differ by up to {worst_f:.2e} (relative)")
+    if worst_f > feat_tol:
+        problems.append(f"features differ by up to {worst_f:.2e} (relative; {worst_where}), allowed {feat_tol:.0e}")
     return problems, worst_p, worst_f
 
 
@@ -81,9 +87,10 @@ def run(settings: Settings, write_reference: bool = False) -> int:
             shutil.copyfile(p, tmp / "in" / p.name)
         data_root = tmp / "run"
         stage(tmp / "in", data_root)
-        print(f"running AutoMorph v2 on {len(photos)} sample photos ({settings.device}) …", flush=True)
+        device = devices.resolve(settings.device)
+        print(f"running AutoMorph v2 on {len(photos)} sample photos ({device}) …", flush=True)
         t = time.time()
-        automorph.run(data_root, settings.device)
+        automorph.run(data_root, device)
         print(f"finished in {time.time() - t:.0f} s")
         got = _results(data_root)
         if write_reference:
@@ -91,8 +98,9 @@ def run(settings: Settings, write_reference: bool = False) -> int:
             print(f"reference written: {REFERENCE}")
             return 0
         ref = json.loads(REFERENCE.read_text(encoding="utf-8"))
-        problems, wp, wf = _compare(got, ref)
-        print(f"largest difference: quality {wp:.1e}, features {wf:.1e} (relative)")
+        tol = FEAT_TOL if device.startswith("cuda") else FEAT_TOL_OTHER
+        problems, wp, wf = _compare(got, ref, tol)
+        print(f"largest difference: quality {wp:.1e}, features {wf:.1e} (relative; allowed on {device}: {tol:.0e})")
         if problems:
             print("SELFTEST FAILED")
             for p in problems:

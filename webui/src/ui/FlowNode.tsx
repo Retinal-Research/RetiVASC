@@ -11,7 +11,7 @@ import { countLabels, isLayer, LAYER_LABEL, layerCanvas, type LayerKind } from '
 import { AnalysisView } from './AnalysisPanel';
 import { FeaturesView } from './FeaturesPanel';
 import { ANALYSIS_STEPS, SheetProgress, SheetSummaryView } from './SheetPanel';
-import { FilePick, StudyPhotosBody } from './StudyNodes';
+import { DevicePick, FilePick, StudyPhotosBody } from './StudyNodes';
 import { Thumb } from './Thumb';
 
 export type StudioNode = Node<StudioNodeData, 'studio'>;
@@ -222,12 +222,17 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
       }
       case 'server.analyze': {
         const v = out?.kind === 'analysis' ? out : undefined;
-        return data.state.status === 'running' ? (
-          <SheetProgress message={data.state.message} fraction={data.state.fraction} steps={ANALYSIS_STEPS} />
-        ) : v ? (
-          <AnalysisView value={v} />
-        ) : (
-          <div className="empty">Connect a photo and press Run. It is sent to the RetiVASC server, which runs the complete AutoMorph v2.</div>
+        return (
+          <div className="study">
+            <DevicePick value={String(data.params.device ?? '')} onPick={(device) => studio.setParams(id, { device })} />
+            {data.state.status === 'running' ? (
+              <SheetProgress message={data.state.message} fraction={data.state.fraction} steps={ANALYSIS_STEPS} />
+            ) : v ? (
+              <AnalysisView value={v} />
+            ) : (
+              <div className="empty">Connect a photo and press Run. It is sent to the RetiVASC server, which runs the complete AutoMorph v2.</div>
+            )}
+          </div>
         );
       }
       case 'study.photos': {
@@ -248,6 +253,7 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
               <input type="checkbox" checked={!!data.params.strict} onChange={(e) => studio.setParams(id, { strict: e.target.checked })} />
               Strict: never pick among several photos
             </label>
+            <DevicePick value={String(data.params.device ?? '')} onPick={(device) => studio.setParams(id, { device })} />
             {data.state.status === 'running' ? (
               <SheetProgress message={data.state.message} fraction={data.state.fraction} />
             ) : v ? (

@@ -4,15 +4,15 @@
   POST   /api/logout
   GET    /api/me
   GET    /api/jobs                  your jobs (all jobs for an admin)
-  POST   /api/jobs/analyze          multipart: files[] (photos)
+  POST   /api/jobs/analyze          multipart: files[] (photos), device (optional; "auto" = the best GPU)
   POST   /api/jobs/sheet            only with the optional study-sheet module (retivasc_sheet):
                                     files[] (a photo folder, paths kept) or server_folder;
-                                    template (xlsx), previous (xlsx, optional), out_name, strict, reuse_job
+                                    template (xlsx), previous (xlsx, optional), out_name, strict, reuse_job, device
   GET    /api/jobs/{id}             status, progress, result
   GET    /api/jobs/{id}/image/{p}   a result image (Results/<p>)
   GET    /api/jobs/{id}/file/{name} a download from out/
   DELETE /api/jobs/{id}             cancel if queued, then delete
-  GET    /api/server                queue length, folders users may analyse in place
+  GET    /api/server                queue length, folders users may analyse in place, inference devices
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Respon
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__
+from . import __version__, devices
 from .accounts import Accounts
 from .jobs import JobStore
 from .settings import Settings
@@ -63,6 +63,7 @@ def create_app(settings: Settings, runner=None, start_worker: bool = True, webui
 
     if start_worker:
         threading.Thread(target=store.worker, daemon=True, name="jobs").start()
+        threading.Thread(target=devices.probe, daemon=True, name="devices").start()  # the list users choose from
 
         def janitor():
             while True:
@@ -138,7 +139,7 @@ def create_app(settings: Settings, runner=None, start_worker: bool = True, webui
     def server(name: str = Depends(user)):
         return {"version": __version__, "mode": settings.auth, "queued": len(store.queue), "running": store.current is not None,
                 "allowed_folders": [str(p) for p in settings.allowed_folders], "retention_days": settings.retention_days,
-                "device": settings.device, "features": {"sheet": SHEET}}
+                "device": settings.device, "devices": devices.cached(), "features": {"sheet": SHEET}}
 
     # -- jobs
     def view(job) -> dict:
@@ -173,13 +174,18 @@ def create_app(settings: Settings, runner=None, start_worker: bool = True, webui
             n += 1
         return n
 
+    def checked_device(device: str) -> dict:
+        if not devices.valid(device):
+            raise HTTPException(400, f"no device {device!r} on this server")
+        return {"device": device} if device not in ("", "auto") else {}
+
     @app.post("/api/jobs/analyze")
-    async def analyze(files: list[UploadFile] = File(...), name: str = Depends(user)):
+    async def analyze(files: list[UploadFile] = File(...), device: str = Form(""), name: str = Depends(user)):
         photos = [f for f in files if Path(f.filename or "").suffix.lower() in PHOTO_TYPES]
         if not photos:
             raise HTTPException(400, "no photos (tif, jpg, png, bmp) in the upload")
         queue_limit(name)
-        j = store.create(name, "analyze", f"{len(photos)} photo(s)", {})
+        j = store.create(name, "analyze", f"{len(photos)} photo(s)", checked_device(device))
         try:
             await save_uploads(photos, store.path(j.id) / "input" / "photos", keep_paths=False)
         except Exception:
@@ -193,7 +199,7 @@ def create_app(settings: Settings, runner=None, start_worker: bool = True, webui
     async def sheet(template: UploadFile = File(...), previous: UploadFile | None = File(None),
                     files: list[UploadFile] | None = File(None), server_folder: str = Form(""),
                     out_name: str = Form(...), strict: bool = Form(False), reuse_job: str = Form(""),
-                    name: str = Depends(user)):
+                    device: str = Form(""), name: str = Depends(user)):
         if not SHEET:
             raise HTTPException(404, "the study-sheet module is not installed on this server")
         if not out_name.endswith(".xlsx") or "/" in out_name or "\\" in out_name:
@@ -201,12 +207,13 @@ def create_app(settings: Settings, runner=None, start_worker: bool = True, webui
         queue_limit(name)
         j = store.create(name, "sheet", out_name, {})
         try:
-            return await _fill_sheet_job(j, template, previous, files, server_folder, out_name, strict, reuse_job, name)
+            return await _fill_sheet_job(j, template, previous, files, server_folder, out_name, strict, reuse_job,
+                                         checked_device(device), name)
         except Exception:
             shutil.rmtree(store.path(j.id), ignore_errors=True)  # no half-made job is left behind
             raise
 
-    async def _fill_sheet_job(j, template, previous, files, server_folder, out_name, strict, reuse_job, name):
+    async def _fill_sheet_job(j, template, previous, files, server_folder, out_name, strict, reuse_job, device, name):
         jdir = store.path(j.id)
         if reuse_job:
             src = owned(reuse_job, name)
@@ -228,7 +235,7 @@ def create_app(settings: Settings, runner=None, start_worker: bool = True, webui
             images_root = jdir / "input" / tops.pop()
         else:
             raise HTTPException(400, "choose a photo folder: upload it or name a server folder")
-        params = {"images_root": str(images_root), "out_name": out_name, "strict": strict, "reuse_job": reuse_job}
+        params = {"images_root": str(images_root), "out_name": out_name, "strict": strict, "reuse_job": reuse_job, **device}
         for key, f in (("template", template), ("previous", previous)):
             if f is not None and f.filename:
                 (jdir / "sheets").mkdir(exist_ok=True)
