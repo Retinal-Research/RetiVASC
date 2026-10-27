@@ -5,6 +5,10 @@
 name: install
 on:
   workflow_dispatch:
+    inputs:
+      os:
+        description: 'Runners, as a JSON list'
+        default: '["ubuntu-latest", "macos-14", "windows-latest"]'
   release:
     types: [published]
 
@@ -13,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-14, windows-latest]
+        os: ${{ fromJSON(inputs.os || '["ubuntu-latest", "macos-14", "windows-latest"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 150
     steps:

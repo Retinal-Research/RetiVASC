@@ -106,6 +106,15 @@ def run(data_root: Path | str, device: str = "auto") -> None:
         raise RuntimeError(f"AutoMorph v2 failed (exit {proc.returncode}); see {data_root / LOG}")
 
 
+def failure_detail(data_root: Path | str, lines: int = 25) -> str:
+    """The end of the log of the AutoMorph stage that ran last, which holds the error."""
+    logs = sorted((Path(data_root) / ".automorph_v2" / "logs").glob("*.log"), key=lambda p: p.stat().st_mtime)
+    if not logs:
+        return ""
+    tail = logs[-1].read_text(encoding="utf-8", errors="replace").splitlines()[-lines:]
+    return f"--- end of {logs[-1].name} ---\n" + "\n".join(tail)
+
+
 @dataclass
 class QualityRow:
     p_good: float

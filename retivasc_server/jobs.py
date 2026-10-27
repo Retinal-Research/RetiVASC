@@ -224,6 +224,7 @@ class JobStore:
         try:
             self.runner(data_root, device)
         except RuntimeError as e:
+            log.write(automorph.failure_detail(data_root) + "\n")
             # an AutoMorph stage occasionally dies without a Python error (seen once: M2 exited
             # with an access violation while the GPU was shared); run it again once, from scratch
             log.write(f"{_now()} AutoMorph v2 stopped unexpectedly ({e}); running it once more\n")
