@@ -1,0 +1,33 @@
+# machine-specific settings and everything that may hold study data
+retivasc.local.json
+work/
+outputs/
+*.xlsx
+*.mhtml
+
+# model weights: published separately (see README, "Models")
+automorph_v2/runtime/**/*.pth
+automorph_v2/runtime/**/*.pt
+webui/public/models/*.onnx
+
+# generated
+webui/node_modules/
+webui/dist/
+tools/ref/
+tools/official/
+tools/official_retify/
+tools/.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+tools/shots/
+release/
+webui/tests/*.png
+
+# study-specific modules and documents: kept on the lab machine, never published
+retivasc_sheet/
+docs/audit/
+tools/*retify*
+!deploy/retivasc.local.json
+webui/tests/study.mjs
+automorph_v2/docs/

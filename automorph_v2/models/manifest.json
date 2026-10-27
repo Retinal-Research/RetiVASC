@@ -1,0 +1,398 @@
+{
+  "schema_version": 1,
+  "description": "AutoMorph v2 required model and model-support inventory",
+  "generated_by": "scripts/build_model_manifest.py",
+  "path_base": "release_root",
+  "checkpoint_count": 50,
+  "support_asset_count": 5,
+  "total_checkpoint_bytes": 1785043294,
+  "total_manifested_bytes": 1785073475,
+  "distribution_notice": "Checksums identify tested artifacts; they do not grant checkpoint redistribution rights. See THIRD_PARTY_NOTICES.md.",
+  "files": [
+    {
+      "module": "M1_quality",
+      "kind": "checkpoint",
+      "path": "runtime/M1_Retinal_Image_quality_EyePACS/Retinal_quality/EyePACS_quality/efficientnet/0_seed_42/best_loss_checkpoint.pth",
+      "bytes": 72859173,
+      "sha256": "a9e2a9f530e0ddd0ad2b442e4eeb5d4d28bc8afd309971c7625274ae0fef0063"
+    },
+    {
+      "module": "M1_quality",
+      "kind": "checkpoint",
+      "path": "runtime/M1_Retinal_Image_quality_EyePACS/Retinal_quality/EyePACS_quality/efficientnet/1_seed_40/best_loss_checkpoint.pth",
+      "bytes": 72859173,
+      "sha256": "51c337cae6393eaef9fb8a80ff8fbc02013ac10de62f9777aa5a338c8b3ccbc6"
+    },
+    {
+      "module": "M1_quality",
+      "kind": "checkpoint",
+      "path": "runtime/M1_Retinal_Image_quality_EyePACS/Retinal_quality/EyePACS_quality/efficientnet/2_seed_38/best_loss_checkpoint.pth",
+      "bytes": 72859173,
+      "sha256": "12b730d353f41bbb8bb08126280dbb663bc07c007b1b2d76001fff266edaef4a"
+    },
+    {
+      "module": "M1_quality",
+      "kind": "checkpoint",
+      "path": "runtime/M1_Retinal_Image_quality_EyePACS/Retinal_quality/EyePACS_quality/efficientnet/3_seed_36/best_loss_checkpoint.pth",
+      "bytes": 72859173,
+      "sha256": "3b775a78481b69004b56164f23e3122046846d368b07bfaf7707c041aedd531f"
+    },
+    {
+      "module": "M1_quality",
+      "kind": "checkpoint",
+      "path": "runtime/M1_Retinal_Image_quality_EyePACS/Retinal_quality/EyePACS_quality/efficientnet/4_seed_34/best_loss_checkpoint.pth",
+      "bytes": 72859173,
+      "sha256": "9fcfd919558a6230d4190d400971958c4491f939435e9d3903af945b6a9b46ce"
+    },
+    {
+      "module": "M1_quality",
+      "kind": "checkpoint",
+      "path": "runtime/M1_Retinal_Image_quality_EyePACS/Retinal_quality/EyePACS_quality/efficientnet/5_seed_32/best_loss_checkpoint.pth",
+      "bytes": 72859173,
+      "sha256": "d8f2c23c23a5651d8ce1574e86a440082becf6b330d03c8af880ee68b71abff3"
+    },
+    {
+      "module": "M1_quality",
+      "kind": "checkpoint",
+      "path": "runtime/M1_Retinal_Image_quality_EyePACS/Retinal_quality/EyePACS_quality/efficientnet/6_seed_30/best_loss_checkpoint.pth",
+      "bytes": 72859173,
+      "sha256": "dc8cf19c7807666251d461ee3ab93fd26dc3c357f4dcb1819de5d5f603562f24"
+    },
+    {
+      "module": "M1_quality",
+      "kind": "checkpoint",
+      "path": "runtime/M1_Retinal_Image_quality_EyePACS/Retinal_quality/EyePACS_quality/efficientnet/7_seed_28/best_loss_checkpoint.pth",
+      "bytes": 72859173,
+      "sha256": "f17683b20bc6ce4f1945cf86826ae8567bbbeae25dbd728b923162533209a6c8"
+    },
+    {
+      "module": "M2_vessel",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Vessel_seg/Saved_model/train_on_ALL-SIX/20210630_uniform_thres40_ALL-SIX_savebest_randomseed_24/G_best_F1_epoch.pth",
+      "bytes": 34647071,
+      "sha256": "916e4f3ed5725bf11800de42c6adff7205455e3a7ce22ae712e67f3328aa1362"
+    },
+    {
+      "module": "M2_vessel",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Vessel_seg/Saved_model/train_on_ALL-SIX/20210630_uniform_thres40_ALL-SIX_savebest_randomseed_26/G_best_F1_epoch.pth",
+      "bytes": 34647071,
+      "sha256": "d5398fe124b075a475dd12df4228ab63142afb9aeddcbff1412fbe0fc37e0e4a"
+    },
+    {
+      "module": "M2_vessel",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Vessel_seg/Saved_model/train_on_ALL-SIX/20210630_uniform_thres40_ALL-SIX_savebest_randomseed_28/G_best_F1_epoch.pth",
+      "bytes": 34647071,
+      "sha256": "f9a7a48408aae2d5ca6b804b0161685e7f1eccd4392d4fb05a75a251a9794b05"
+    },
+    {
+      "module": "M2_vessel",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Vessel_seg/Saved_model/train_on_ALL-SIX/20210630_uniform_thres40_ALL-SIX_savebest_randomseed_30/G_best_F1_epoch.pth",
+      "bytes": 34647071,
+      "sha256": "01d8c6586e2cb85379ad4450faf52b91211b11a7523872582c73d8a056695bbf"
+    },
+    {
+      "module": "M2_vessel",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Vessel_seg/Saved_model/train_on_ALL-SIX/20210630_uniform_thres40_ALL-SIX_savebest_randomseed_32/G_best_F1_epoch.pth",
+      "bytes": 34647071,
+      "sha256": "f7f8478600c992845dbd050328e35212376f4043b9aeefef81f90862d118fe2a"
+    },
+    {
+      "module": "M2_vessel",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Vessel_seg/Saved_model/train_on_ALL-SIX/20210630_uniform_thres40_ALL-SIX_savebest_randomseed_34/G_best_F1_epoch.pth",
+      "bytes": 34647071,
+      "sha256": "f52ae57d0c6edf40ea140e1895168325bf2d86a992154b96d15360b7f28e6fab"
+    },
+    {
+      "module": "M2_vessel",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Vessel_seg/Saved_model/train_on_ALL-SIX/20210630_uniform_thres40_ALL-SIX_savebest_randomseed_36/G_best_F1_epoch.pth",
+      "bytes": 34647071,
+      "sha256": "24bee0876f2da5992a08221cf61dba3de98f4d5d3ad4f025ccb7fde643148b11"
+    },
+    {
+      "module": "M2_vessel",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Vessel_seg/Saved_model/train_on_ALL-SIX/20210630_uniform_thres40_ALL-SIX_savebest_randomseed_38/G_best_F1_epoch.pth",
+      "bytes": 34647071,
+      "sha256": "941383529931393b1ba8fd89686aa1e881b1434e8a599c7b74079ce1a1a889e0"
+    },
+    {
+      "module": "M2_vessel",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Vessel_seg/Saved_model/train_on_ALL-SIX/20210630_uniform_thres40_ALL-SIX_savebest_randomseed_40/G_best_F1_epoch.pth",
+      "bytes": 34647071,
+      "sha256": "8b824b13fe61cda6ad4836f72cc5f9aaef9f548cbc29903997108cca2d746241"
+    },
+    {
+      "module": "M2_vessel",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Vessel_seg/Saved_model/train_on_ALL-SIX/20210630_uniform_thres40_ALL-SIX_savebest_randomseed_42/G_best_F1_epoch.pth",
+      "bytes": 34647071,
+      "sha256": "d611116ab4b4f70890dc8325c1328fd1d756a2771f5438a7a89e45b2d833dcdb"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_28/Discriminator_unet/CP_best_F1_all.pth",
+      "bytes": 36664847,
+      "sha256": "b2fdc3a7046a74b6e2d9b64abed32fb105fa27cccf2a1405d739ca509a457991"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_28/Discriminator_unet/CP_best_F1_A.pth",
+      "bytes": 34647455,
+      "sha256": "5c74fa3c3bcaf2e82d70a07e06130496b3aaed9ed12d404a90a8bd931ebfcdc9"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_28/Discriminator_unet/CP_best_F1_V.pth",
+      "bytes": 34647455,
+      "sha256": "6b2c68a0c283e053d39940b80b19d46aa74c2010ba3427ffa3c45ef3f8e93d15"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_30/Discriminator_unet/CP_best_F1_all.pth",
+      "bytes": 36664847,
+      "sha256": "dd2e7b1aba15e37b3973aae615d2b3b30451801ad6cf59b9d5809081c296aaa4"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_30/Discriminator_unet/CP_best_F1_A.pth",
+      "bytes": 34647455,
+      "sha256": "51293fe408dc9deba9f691a003f3fe55f1a08c204049152698a7cac3af0e8e91"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_30/Discriminator_unet/CP_best_F1_V.pth",
+      "bytes": 34647455,
+      "sha256": "03568ca6d2623e0f85125d54125e77ed481d2a2846a95ebf980acce95cbd7d13"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_32/Discriminator_unet/CP_best_F1_all.pth",
+      "bytes": 36664847,
+      "sha256": "e0cd6dc90704992bea6fd9a51dd497cadc46ddd01ba027df5f9ca48db0cc196d"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_32/Discriminator_unet/CP_best_F1_A.pth",
+      "bytes": 34647455,
+      "sha256": "b9abc2ebe6aa072e76c092116211766a3daa67bbc3e612b205546ae8659ed95f"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_32/Discriminator_unet/CP_best_F1_V.pth",
+      "bytes": 34647455,
+      "sha256": "1b824cab65bea3dfa8068dbefa76cc6bf995231269332251234c06c232ca7268"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_34/Discriminator_unet/CP_best_F1_all.pth",
+      "bytes": 36664847,
+      "sha256": "76f105d7263590b738805471c33c9a064e7262c7980f0923b58e3c1cc8d29eb1"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_34/Discriminator_unet/CP_best_F1_A.pth",
+      "bytes": 34647455,
+      "sha256": "a00245a32a3d73f97fafd00ec00ee8f5702dfee45273651f6151074f1574f858"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_34/Discriminator_unet/CP_best_F1_V.pth",
+      "bytes": 34647455,
+      "sha256": "a39438cbe2c3a570af4f48f9aac60fd04bf5fe79e5a7059284823973f88dad72"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_36/Discriminator_unet/CP_best_F1_all.pth",
+      "bytes": 36664847,
+      "sha256": "397b7719ec6fe9d029285567a7c88f60c9f2b0f68843c1a125a08d512cd69dea"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_36/Discriminator_unet/CP_best_F1_A.pth",
+      "bytes": 34647455,
+      "sha256": "dbf5ab5cd1ea7dccbc522ee5c423d69efd45467f35d7af20d3c0d60d8c31b72e"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_36/Discriminator_unet/CP_best_F1_V.pth",
+      "bytes": 34647455,
+      "sha256": "6b643c0c7c91dd7124b257b698e192d8b5f4af0611bf7c9fd0b30948ec2f3415"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_38/Discriminator_unet/CP_best_F1_all.pth",
+      "bytes": 36664847,
+      "sha256": "81af0349273dd9875707b2991571f4fd5bdd7db53d1278122f0a68d5e86da566"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_38/Discriminator_unet/CP_best_F1_A.pth",
+      "bytes": 34647455,
+      "sha256": "b87d74428a1570839b569549667ccb82d66a814be7f6cd3212753f1bd51521a0"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_38/Discriminator_unet/CP_best_F1_V.pth",
+      "bytes": 34647455,
+      "sha256": "6b584dbf2ea88aed44fcbe4350badc1a6ffd15c04ea07764c4ddab69be7ca0c8"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_40/Discriminator_unet/CP_best_F1_all.pth",
+      "bytes": 36664847,
+      "sha256": "da7c942a0ab876b1951d4c6bcb53bf093e4a8ff56351adedc275274ce58f6672"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_40/Discriminator_unet/CP_best_F1_A.pth",
+      "bytes": 34647455,
+      "sha256": "4b5cad4edd51cb0a583eb99fe433bf193c1ad4102d7e4f5a7dcaab4d26524f3b"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_40/Discriminator_unet/CP_best_F1_V.pth",
+      "bytes": 34647455,
+      "sha256": "d82da459466fd3dcf62006b605de86dbd6f04f90fbd74cccdfed4cd7f05d9496"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_42/Discriminator_unet/CP_best_F1_all.pth",
+      "bytes": 36664847,
+      "sha256": "d7533956fbe66cfeacb96b3adc64c5b2cde1ccf8f7ba18ab6fd202cc8b378bfd"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_42/Discriminator_unet/CP_best_F1_A.pth",
+      "bytes": 34647455,
+      "sha256": "a4575fc7af025e2bdc84f78c7f0caddabf376a97f65717f7066871fb8acd275e"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "checkpoint",
+      "path": "runtime/M2_Artery_vein/ALL-AV/20210724_ALL-AV_randomseed_42/Discriminator_unet/CP_best_F1_V.pth",
+      "bytes": 34647455,
+      "sha256": "bd046264bc5f7efd484318762e65a82eda3475276b350a7e44ba09df137e79cf"
+    },
+    {
+      "module": "M2_disc_cup",
+      "kind": "checkpoint",
+      "path": "runtime/M2_lwnet_disc_cup/experiments/wnet_All_three_1024_disc_cup/28/model_checkpoint.pth",
+      "bytes": 1002643,
+      "sha256": "6022098f7fa5494b60e673685a7baab350d4d3f71a221bd79106658f23d555c2"
+    },
+    {
+      "module": "M2_disc_cup",
+      "kind": "checkpoint",
+      "path": "runtime/M2_lwnet_disc_cup/experiments/wnet_All_three_1024_disc_cup/30/model_checkpoint.pth",
+      "bytes": 1002643,
+      "sha256": "e848215a59d02a770d01728e61fb3e88702c41b27c3fd1bc5025840c24168406"
+    },
+    {
+      "module": "M2_disc_cup",
+      "kind": "checkpoint",
+      "path": "runtime/M2_lwnet_disc_cup/experiments/wnet_All_three_1024_disc_cup/32/model_checkpoint.pth",
+      "bytes": 1002643,
+      "sha256": "b072e49f565de497c66d1dd7a737d89ba32642ea8463be585939661b07ac7243"
+    },
+    {
+      "module": "M2_disc_cup",
+      "kind": "checkpoint",
+      "path": "runtime/M2_lwnet_disc_cup/experiments/wnet_All_three_1024_disc_cup/34/model_checkpoint.pth",
+      "bytes": 1002643,
+      "sha256": "9151d2c43cc91dde2039502480e9f119e4aa975e727d414fabfbe4c5124f3957"
+    },
+    {
+      "module": "M2_disc_cup",
+      "kind": "checkpoint",
+      "path": "runtime/M2_lwnet_disc_cup/experiments/wnet_All_three_1024_disc_cup/36/model_checkpoint.pth",
+      "bytes": 1002643,
+      "sha256": "cb8b457059f8d0a642d8ef6f90144e0c8231913578f8f69772e1ba43014cccd0"
+    },
+    {
+      "module": "M2_disc_cup",
+      "kind": "checkpoint",
+      "path": "runtime/M2_lwnet_disc_cup/experiments/wnet_All_three_1024_disc_cup/38/model_checkpoint.pth",
+      "bytes": 1002643,
+      "sha256": "bce9906613219cc46f180217dac194bf327ad67dde7d91eaf26261aca0dc3527"
+    },
+    {
+      "module": "M2_disc_cup",
+      "kind": "checkpoint",
+      "path": "runtime/M2_lwnet_disc_cup/experiments/wnet_All_three_1024_disc_cup/40/model_checkpoint.pth",
+      "bytes": 1002643,
+      "sha256": "5fd4fb7792b7941245014f1d1649c2822b8b409b40ccab30463858a50b2889e8"
+    },
+    {
+      "module": "M2_disc_cup",
+      "kind": "checkpoint",
+      "path": "runtime/M2_lwnet_disc_cup/experiments/wnet_All_three_1024_disc_cup/42/model_checkpoint.pth",
+      "bytes": 1002643,
+      "sha256": "bf3a4086d0aa96b39bebd6b0d1f841a9ed3e7384f4c548beb53b2fb0ffeba5af"
+    },
+    {
+      "module": "M2_vessel",
+      "kind": "model_source",
+      "path": "runtime/M2_Vessel_seg/model.py",
+      "bytes": 7481,
+      "sha256": "a279a5349d8016cc02ff6b9ebfe4c0ba476b147b2e3ac886cc8b6dfbe7c5ccbd"
+    },
+    {
+      "module": "M2_artery_vein",
+      "kind": "model_source",
+      "path": "runtime/M2_Artery_vein/scripts/model.py",
+      "bytes": 12003,
+      "sha256": "5b12975b82491696aee2b9796196d457a8397f01353f87214f5242db28aba357"
+    },
+    {
+      "module": "M2_disc_cup",
+      "kind": "model_source",
+      "path": "runtime/M2_lwnet_disc_cup/models/get_model.py",
+      "bytes": 1970,
+      "sha256": "9753773e4cecd87e197a8f9fe3e9f69e2f4bf5bfa4dac9a10a7973d746bb993b"
+    },
+    {
+      "module": "M2_disc_cup",
+      "kind": "model_source",
+      "path": "runtime/M2_lwnet_disc_cup/models/res_unet_adrian.py",
+      "bytes": 8505,
+      "sha256": "ba86fcc3dc47ef2c76ecb8b8d263b57f731a72f37cb4cf1bfa214b7837b1a622"
+    },
+    {
+      "module": "M3_features",
+      "kind": "configuration",
+      "path": "runtime/M3_feature_whole_pic/retipy/resources/retipy.config",
+      "bytes": 222,
+      "sha256": "d407b964bcff7550ec9b5611bd6592146f65ecdb11bcf5bd9060e7398ac84989"
+    }
+  ]
+}

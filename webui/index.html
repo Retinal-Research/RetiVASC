@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <title>RetiVASC Studio</title>
+    <script>
+      // apply the saved day/night theme and accent before the first paint (see src/ui/appearance.ts)
+      try {
+        var a = JSON.parse(localStorage.getItem('retivasc-studio-appearance') || '{}');
+        var mode = a.mode === 'light' || a.mode === 'dark' ? a.mode : 'system';
+        var dark = mode === 'dark' || (mode === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+        var root = document.documentElement;
+        root.dataset.theme = dark ? 'dark' : 'light';
+        if (/^#[0-9a-f]{6}$/i.test(a.accent || '')) root.style.setProperty('--accent', a.accent);
+        if (/^#[0-9a-f]{6}$/i.test(a.ink || '')) root.style.setProperty('--accent-ink', a.ink);
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

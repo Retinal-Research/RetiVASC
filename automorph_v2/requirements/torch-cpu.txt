@@ -1,0 +1,5 @@
+# Windows/Linux CPU-only PyTorch wheels. Keep the local +cpu tag explicit so
+# pip cannot silently select a CUDA-enabled wheel from another index.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.7.1+cpu
+torchvision==0.22.1+cpu

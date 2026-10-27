@@ -1,0 +1,3 @@
+# Test dependencies include report support because report builders are tested.
+-r report.txt
+pytest==7.1.2

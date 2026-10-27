@@ -1,0 +1,17 @@
+# Run on the GPU host:  docker compose -f deploy/docker-compose.yml up -d
+# First user:           docker compose -f deploy/docker-compose.yml exec retivasc python -m retivasc_server adduser NAME --admin
+# Acceptance test:      docker compose -f deploy/docker-compose.yml exec retivasc python -m retivasc_server selftest
+services:
+  retivasc:
+    image: retivasc:0.1
+    restart: unless-stopped
+    ports: ["8080:8080"]
+    volumes:
+      - retivasc-data:/data          # accounts, jobs, results (kept for retention_days)
+      - /srv/retina-photos:/photos:ro  # optional: photo folders users may analyse in place
+    deploy:
+      resources:
+        reservations:
+          devices: [{ driver: nvidia, count: 1, capabilities: [gpu] }]
+volumes:
+  retivasc-data:

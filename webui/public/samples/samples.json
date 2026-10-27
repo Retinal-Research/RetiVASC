@@ -1,0 +1,56 @@
+[
+  {
+    "file": "samples/cc0_left_3744.jpg",
+    "label": "Normal fundus, left eye",
+    "width": 3744,
+    "height": 3744,
+    "license": "CC0",
+    "author": "Augenarztpraxis Dr. med. Stephan Kaut",
+    "source": "https://commons.wikimedia.org/wiki/File:Fundus-photograph-left.jpg"
+  },
+  {
+    "file": "samples/cc0_right_3744.jpg",
+    "label": "Normal fundus, right eye",
+    "width": 3744,
+    "height": 3744,
+    "license": "CC0",
+    "author": "Augenarztpraxis Dr. med. Stephan Kaut",
+    "source": "https://commons.wikimedia.org/wiki/File:Fundus-photograph-right.jpg"
+  },
+  {
+    "file": "samples/ccbysa_right_3504.jpg",
+    "label": "Normal fundus, right eye (wide frame)",
+    "width": 3504,
+    "height": 2336,
+    "license": "CC BY-SA 3.0",
+    "author": "Meri Vukicevic",
+    "source": "https://commons.wikimedia.org/wiki/File:Fundus_photo_right_eye.jpg"
+  },
+  {
+    "file": "samples/pd_cmv_retinitis.jpg",
+    "label": "CMV retinitis",
+    "width": 1800,
+    "height": 1200,
+    "license": "Public domain",
+    "author": "National Eye Institute, NIH",
+    "source": "https://commons.wikimedia.org/wiki/File:Fundus_photograph-CMV_retinitis_EDA07.JPG"
+  },
+  {
+    "file": "samples/normal_left_1411.jpg",
+    "label": "Normal fundus, left eye (small)",
+    "width": 1411,
+    "height": 1411,
+    "license": "CC0",
+    "author": "Mikael Häggström",
+    "source": "https://commons.wikimedia.org/wiki/File:Fundus_photograph_of_normal_left_eye.jpg"
+  },
+  {
+    "file": "samples/pd_retinopathy_900.jpg",
+    "label": "Diabetic retinopathy (low resolution)",
+    "width": 900,
+    "height": 600,
+    "license": "Public domain",
+    "author": "National Eye Institute, NIH",
+    "source": "https://commons.wikimedia.org/wiki/File:Fundus_retinopathy_EDA03.JPG"
+  }
+]

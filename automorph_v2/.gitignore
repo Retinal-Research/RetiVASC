@@ -1,0 +1,53 @@
+# Local Python environments and generated package state
+/.venv/
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+*.dylib
+/.pytest_cache/
+/.coverage
+/htmlcov/
+/build/
+/dist/
+*.egg-info/
+
+# Formal acceptance inputs/runs are private local artifacts
+/.acceptance_private/
+/.acceptance_runs/
+/.test_tmp/
+/src/v2/exp/
+**/.acceptance_private/
+**/.acceptance_runs/
+**/.test_tmp/
+
+# User data and generated pipeline results
+/Results/
+**/Results/
+/images/
+**/images/
+**/.automorph_v2/
+**/.automorph_v2.run.lock
+**/resolution_information.csv
+/data/
+/dataset/
+/datasets/
+/input/
+/inputs/
+/output/
+/outputs/
+/runs/
+*.dcm
+*.dicom
+*.nii
+*.nii.gz
+
+# Logs, local configuration, secrets, and editor state
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

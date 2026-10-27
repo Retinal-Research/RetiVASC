@@ -1,0 +1,8 @@
+webui/node_modules
+webui/dist
+work
+retivasc.local.json
+.venv
+tools
+**/__pycache__
+**/.pytest_cache

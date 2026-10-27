@@ -1,0 +1,331 @@
+import {
+  addEdge,
+  Background,
+  BackgroundVariant,
+  Controls,
+  MiniMap,
+  ReactFlow,
+  useEdgesState,
+  useNodesInitialized,
+  useNodesState,
+  useReactFlow,
+  type Connection,
+  type Edge,
+  type IsValidConnection,
+} from '@xyflow/react';
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import { Executor, type NodeState, type RunSummary } from './engine/executor';
+import { loadSamples, type Sample } from './engine/sources';
+import { acceptsType, SPECS, type PortSpec } from './engine/specs';
+import type { PortType } from './engine/values';
+import { WORKFLOWS, type WorkflowFile } from './engine/workflows';
+import { engine } from './runtime/engine';
+import type { EngineInfo } from './runtime/protocol';
+import { StudioContext, type Studio, type StudioNodeData, type ViewSettings } from './ui/context';
+import { FlowNode, type StudioNode } from './ui/FlowNode';
+import { Inspector } from './ui/Inspector';
+import { DRAG_TYPE, Sidebar } from './ui/Sidebar';
+import { TopBar } from './ui/TopBar';
+import { useAppearance } from './ui/appearance';
+import { Login, useAccount } from './ui/Login';
+import { api } from './server/api';
+import { exposeTestHooks } from './testHooks';
+
+const nodeTypes = { studio: FlowNode };
+
+/** Edge colour per port type; the values live in styles.css so they follow the theme. */
+const portColor = (type: PortType | undefined) => (type ? `var(--port-${type})` : 'var(--faint)');
+
+const IDLE: NodeState = { status: 'idle', version: 0 };
+
+function port(nodes: StudioNode[], nodeId: string, handle: string | null | undefined, side: 'source' | 'target'): PortSpec | undefined {
+  const node = nodes.find((n) => n.id === nodeId);
+  const spec = node && SPECS[node.data.type];
+  const ports = side === 'source' ? spec?.outputs : spec?.inputs;
+  return ports?.find((p) => p.id === handle);
+}
+
+const portType = (nodes: StudioNode[], nodeId: string, handle: string | null | undefined, side: 'source' | 'target'): PortType | undefined =>
+  port(nodes, nodeId, handle, side)?.type;
+
+function styledEdge(nodes: StudioNode[], e: { source: string; sourceHandle: string; target: string; targetHandle: string }): Edge {
+  const type = portType(nodes, e.source, e.sourceHandle, 'source');
+  return {
+    id: `${e.source}.${e.sourceHandle}->${e.target}.${e.targetHandle}`,
+    ...e,
+    style: { stroke: portColor(type), strokeWidth: 2 },
+  };
+}
+
+function toNodes(wf: WorkflowFile): StudioNode[] {
+  return wf.nodes.map((n) => ({
+    id: n.id,
+    type: 'studio',
+    position: n.position,
+    data: { type: n.type, params: { ...(SPECS[n.type]?.defaults ?? {}), ...(n.params ?? {}) }, state: IDLE },
+  }));
+}
+
+function downstream(edges: Edge[], start: string): Set<string> {
+  const seen = new Set([start]);
+  const queue = [start];
+  while (queue.length) {
+    const id = queue.shift()!;
+    for (const e of edges) if (e.source === id && !seen.has(e.target)) { seen.add(e.target); queue.push(e.target); }
+  }
+  return seen;
+}
+
+export function App() {
+  const executor = useRef(new Executor()).current;
+  const [appearance, setAppearance, theme] = useAppearance();
+  const [account, setAccount] = useAccount();
+  const flow = useReactFlow<StudioNode, Edge>();
+  const [nodes, setNodes, onNodesChange] = useNodesState<StudioNode>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const [selected, setSelected] = useState<string | undefined>();
+  const [engineInfo, setEngineInfo] = useState<EngineInfo>();
+  const [engineError, setEngineError] = useState<string>();
+  const [samples, setSamples] = useState<Sample[]>([]);
+  const [running, setRunning] = useState(false);
+  const [lastRun, setLastRun] = useState<RunSummary>();
+  const [name, setName] = useState(WORKFLOWS[0].name);
+  const nodesRef = useRef(nodes);
+  const edgesRef = useRef(edges);
+  nodesRef.current = nodes;
+  edgesRef.current = edges;
+  const counter = useRef(1);
+  const fitPending = useRef(false);
+  const nodesReady = useNodesInitialized();
+
+  // frame a freshly loaded workflow once React Flow has measured its nodes
+  useEffect(() => {
+    if (!nodesReady || !fitPending.current) return;
+    fitPending.current = false;
+    void flow.fitView({ padding: 0.06, duration: 250 });
+  }, [nodesReady, flow]);
+
+  const patchNode = useCallback(
+    (id: string, patch: Partial<StudioNodeData>) =>
+      setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n))),
+    [setNodes],
+  );
+
+  const busy = useRef(false);
+  const again = useRef(false);  // a run asked for while another runs (e.g. a workflow opened mid-run)
+  const run = useCallback(async (): Promise<RunSummary | undefined> => {
+    if (busy.current) {
+      again.current = true;
+      return;
+    }
+    busy.current = true;
+    setRunning(true);
+    try {
+      await engine.ready;
+      const graphNodes = nodesRef.current.map((n) => ({ id: n.id, type: n.data.type, params: n.data.params }));
+      const graphEdges = edgesRef.current.map((e) => ({ source: e.source, sourceHandle: e.sourceHandle ?? '', target: e.target, targetHandle: e.targetHandle ?? '' }));
+      const summary = await executor.run(graphNodes, graphEdges, (id, state) => patchNode(id, { state }));
+      setLastRun(summary);
+      return summary;
+    } catch (error) {
+      setLastRun({ ms: 0, errors: 1, ran: 0, blocked: 0 });
+      window.alert(error instanceof Error ? error.message : String(error));
+    } finally {
+      busy.current = false;
+      setRunning(false);
+      if (again.current) {
+        again.current = false;
+        setTimeout(() => void runRef.current?.(), 0);
+      }
+    }
+  }, [executor, patchNode]);
+  const runRef = useRef(run);
+  runRef.current = run;
+
+  const load = useCallback(
+    (wf: WorkflowFile, autorun = true) => {
+      const ns = toNodes(wf);
+      setNodes(ns);
+      setEdges(wf.edges.map((e) => styledEdge(ns, e)));
+      setName(wf.name);
+      setSelected(undefined);
+      setLastRun(undefined);
+      nodesRef.current = ns;
+      edgesRef.current = wf.edges.map((e) => styledEdge(ns, e));
+      fitPending.current = true;
+      if (autorun) void run();
+    },
+    [flow, run, setEdges, setNodes],
+  );
+
+  useEffect(() => {
+    engine.ready.then(setEngineInfo, (e: Error) => setEngineError(e.message));
+    loadSamples().then(setSamples, () => setSamples([]));
+    load(WORKFLOWS[0], false);
+  }, []);
+
+  // the browser-only demo runs its first workflow at once; a server deployment waits for the
+  // user, so nobody downloads the browser models just by opening the page
+  const started = useRef(false);
+  useEffect(() => {
+    if (account.mode === 'offline' && !started.current) {
+      started.current = true;
+      void run();
+    }
+  }, [account.mode, run]);
+
+  const setParams = useCallback(
+    (id: string, params: Record<string, unknown>) => {
+      const affected = downstream(edgesRef.current, id);
+      setNodes((ns) =>
+        ns.map((n) => {
+          if (!affected.has(n.id)) return n;
+          const data = { ...n.data, state: { ...n.data.state, status: 'idle' as const, message: 'Changed · press Run' } };
+          if (n.id === id) data.params = { ...n.data.params, ...params };
+          return { ...n, data };
+        }),
+      );
+    },
+    [setNodes],
+  );
+
+  const setView = useCallback((id: string, view: ViewSettings) => patchNode(id, { view }), [patchNode]);
+
+  const isValidConnection: IsValidConnection<Edge> = useCallback((c) => {
+    if (c.source === c.target) return false;
+    const ns = nodesRef.current;
+    const a = portType(ns, c.source, c.sourceHandle, 'source');
+    const b = port(ns, c.target, c.targetHandle, 'target');
+    if (!a || !b || !acceptsType(b, a)) return false;
+    return !downstream(edgesRef.current, c.target).has(c.source); // no loops
+  }, []);
+
+  const onConnect = useCallback(
+    (c: Connection) => {
+      setEdges((es) => {
+        const kept = es.filter((e) => !(e.target === c.target && e.targetHandle === c.targetHandle));
+        const edge = styledEdge(nodesRef.current, { source: c.source, sourceHandle: c.sourceHandle ?? '', target: c.target, targetHandle: c.targetHandle ?? '' });
+        return addEdge(edge, kept);
+      });
+      setParams(c.target, {});
+    },
+    [setEdges, setParams],
+  );
+
+  const addNode = useCallback(
+    (type: string, position?: { x: number; y: number }) => {
+      const spec = SPECS[type];
+      if (!spec) return;
+      let id = '';
+      do id = `${type.split('.').pop()}-${counter.current++}`;
+      while (nodesRef.current.some((n) => n.id === id));
+      let pos = position ?? flow.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+      if (!position) {
+        // a clicked (not dropped) step goes to the first free spot below the centre
+        const overlaps = (p: { x: number; y: number }) =>
+          nodesRef.current.some((n) => {
+            const w = n.measured?.width ?? 280;
+            const h = n.measured?.height ?? 320;
+            return p.x < n.position.x + w + 24 && p.x + 296 > n.position.x && p.y < n.position.y + h + 24 && p.y + 220 > n.position.y;
+          });
+        for (let i = 0; i < 80 && overlaps(pos); i++) pos = { x: pos.x, y: pos.y + 40 };
+        fitPending.current = true;
+      }
+      setNodes((ns) => [...ns, { id, type: 'studio', position: pos, data: { type, params: { ...(spec.defaults ?? {}) }, state: IDLE } }]);
+      setSelected(id);
+    },
+    [flow, setNodes],
+  );
+
+  const onDrop = useCallback(
+    (e: DragEvent) => {
+      const type = e.dataTransfer.getData(DRAG_TYPE);
+      if (!type) return;
+      e.preventDefault();
+      addNode(type, flow.screenToFlowPosition({ x: e.clientX, y: e.clientY }));
+    },
+    [addNode, flow],
+  );
+
+  const save = useCallback(() => {
+    const file: WorkflowFile = {
+      format: 'retivasc-studio/1',
+      name,
+      nodes: nodesRef.current.map((n) => {
+        const params = { ...n.data.params };
+        if (typeof params.source === 'string' && !params.source.startsWith('sample:')) delete params.source; // files are not saved
+        return { id: n.id, type: n.data.type, position: n.position, params };
+      }),
+      edges: edgesRef.current.map((e) => ({ source: e.source, sourceHandle: e.sourceHandle ?? '', target: e.target, targetHandle: e.targetHandle ?? '' })),
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${name.replace(/[^\w-]+/g, '_').replace(/^_+|_+$/g, '') || 'workflow'}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [name]);
+
+  const open = useCallback(
+    async (f: File) => {
+      try {
+        const wf = JSON.parse(await f.text()) as WorkflowFile;
+        if (wf.format !== 'retivasc-studio/1' || !Array.isArray(wf.nodes) || !Array.isArray(wf.edges)) throw new Error('not a RetiVASC Studio workflow file');
+        const unknown = wf.nodes.find((n) => !SPECS[n.type]);
+        if (unknown) throw new Error(`unknown step type “${unknown.type}”`);
+        load({ ...wf, name: wf.name || f.name }, false);
+      } catch (error) {
+        window.alert(`Could not open ${f.name}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    },
+    [load],
+  );
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); void run(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [run]);
+
+  useEffect(() => exposeTestHooks({ executor, run, load, setParams, nodes: () => nodesRef.current, engine: () => engineInfo }), [executor, run, load, setParams, engineInfo]);
+
+  const studio: Studio = useMemo(
+    () => ({ executor, engine: engineInfo, samples, running, setParams, setView }),
+    [executor, engineInfo, samples, running, setParams, setView],
+  );
+  const selectedNode = nodes.find((n) => n.id === selected);
+
+  return (
+    <StudioContext.Provider value={studio}>
+      <div className="app">
+        <TopBar name={name} engine={engineInfo} engineError={engineError} running={running} lastRun={lastRun} onRun={() => void run()} onSave={save} onOpen={(f) => void open(f)} appearance={appearance} theme={theme} onAppearance={setAppearance} account={account} onSignOut={() => void api.logout().finally(() => setAccount({ mode: 'signin' }))} />
+        <Sidebar current={name} onLoad={(wf) => load(wf)} onAdd={(t) => addNode(t)} server={account.mode === 'ready'} />
+        <main className="canvas" onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} onDrop={onDrop}>
+          <ReactFlow<StudioNode, Edge>
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            isValidConnection={isValidConnection}
+            onNodeClick={(_, n) => setSelected(n.id)}
+            onPaneClick={() => setSelected(undefined)}
+            colorMode={theme}
+            minZoom={0.2}
+            maxZoom={2}
+            deleteKeyCode={['Backspace', 'Delete']}
+          >
+            <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="var(--dots)" />
+            <Controls showInteractive={false} />
+            <MiniMap pannable zoomable nodeColor={(n) => `var(--g-${SPECS[(n.data as StudioNodeData).type]?.group ?? 'input'})`} maskColor="var(--mask)" />
+          </ReactFlow>
+        </main>
+        <Inspector node={selectedNode} />
+        {account.mode === 'signin' && <Login onDone={(a) => setAccount({ mode: 'ready', account: a })} />}
+      </div>
+    </StudioContext.Provider>
+  );
+}

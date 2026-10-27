@@ -1,0 +1,28 @@
+* text=auto
+
+*.py text eol=lf
+*.sh text eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.md text eol=lf
+*.toml text eol=lf
+*.txt text eol=lf
+*.config text eol=lf
+# CSV artifacts participate in byte-for-byte acceptance checks; never rewrite
+# their line endings during checkout.
+*.csv -text
+*.json text eol=lf
+
+# The 50 production checkpoints total roughly 1.66 GiB and are committed
+# directly as binary files for out-of-the-box use (no Git LFS required).
+*.pth binary
+*.pt binary
+*.onnx binary
+*.engine binary
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.tif binary
+*.tiff binary
+*.zip binary

@@ -1,0 +1,13 @@
+# AutoMorph v2 direct runtime dependencies.
+#
+# Torch and torchvision are intentionally selected separately by the bootstrap
+# script so CPU, NVIDIA CUDA 11.8, and macOS/MPS installations cannot be mixed.
+# Install exactly one OpenCV wheel; the headless build avoids GUI dependencies.
+numpy==1.26.4
+opencv-python-headless==4.10.0.84
+pandas==2.3.3
+Pillow==10.4.0
+scipy==1.13.1
+scikit-image==0.24.0
+efficientnet_pytorch==0.7.1
+tqdm==4.67.1

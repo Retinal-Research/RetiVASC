@@ -1,0 +1,12 @@
+{
+  "gpu_python": "C:/path/to/python-with-torch.exe",
+  "gpu_env": "CUDA_DEVICE_ORDER=PCI_BUS_ID;CUDA_VISIBLE_DEVICES=0",
+  "server": {
+    "auth": "accounts",
+    "host": "127.0.0.1",
+    "port": 8080,
+    "retention_days": 30,
+    "device": "cuda",
+    "allowed_folders": []
+  }
+}

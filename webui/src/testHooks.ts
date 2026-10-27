@@ -1,0 +1,56 @@
+// window.__studio: a small handle for the automated browser checks in
+// tests/browser.mjs. It only reads results and drives the same actions as the UI.
+
+import type { Executor, RunSummary } from './engine/executor';
+import type { WorkflowFile } from './engine/workflows';
+import { WORKFLOWS } from './engine/workflows';
+import type { EngineInfo } from './runtime/protocol';
+import type { StudioNode } from './ui/FlowNode';
+
+interface Hooks {
+  executor: Executor;
+  run: () => Promise<RunSummary | undefined>;
+  load: (wf: WorkflowFile, autorun?: boolean) => void;
+  setParams: (id: string, params: Record<string, unknown>) => void;
+  nodes: () => StudioNode[];
+  engine: () => EngineInfo | undefined;
+}
+
+function base64(bytes: Uint8Array): string {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
+export function exposeTestHooks(h: Hooks): void {
+  (window as unknown as { __studio: unknown }).__studio = {
+    workflows: () => WORKFLOWS.map((w) => w.name),
+    load: (index: number) => h.load(WORKFLOWS[index], false),
+    setSource: (id: string, source: string) => h.setParams(id, { source }),
+    setParams: (id: string, params: Record<string, unknown>) => h.setParams(id, params),
+    run: () => h.run(),
+    engine: () => h.engine(),
+    states: () => Object.fromEntries(h.nodes().map((n) => [n.id, n.data.state])),
+    result: (id: string) => {
+      const out = h.executor.outputs(id);
+      if (!out) return null;
+      const v = Object.values(out)[0];
+      if (!v) return null;
+      switch (v.kind) {
+        case 'fundus':
+          return { kind: v.kind, width: v.width, height: v.height };
+        case 'm0':
+          return { kind: v.kind, side: v.side, geometry: v.geometry, ms: v.ms };
+        case 'quality':
+          return { kind: v.kind, result: v.result, timing: v.timing };
+        case 'vessel':
+          return { kind: v.kind, size: v.size, labels: base64(v.mask), timing: v.timing };
+        case 'av':
+        case 'disc':
+          return { kind: v.kind, size: v.map.width, labels: base64(v.map.labels), timing: v.timing };
+        case 'features':
+          return { kind: v.kind, features: v.result.features, centredOn: v.result.centredOn, discValid: v.result.discValid, ms: v.result.ms, gradable: v.gradable };
+      }
+    },
+  };
+}

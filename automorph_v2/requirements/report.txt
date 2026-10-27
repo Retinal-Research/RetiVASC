@@ -1,0 +1,3 @@
+# Optional dependencies used to regenerate benchmark and acceptance figures.
+-r runtime.txt
+matplotlib==3.10.8

@@ -1,0 +1,48 @@
+cff-version: 1.2.0
+message: >-
+  If you use AutoMorph v2, cite the original AutoMorph article below and the
+  downstream software release record once its repository metadata is finalized.
+title: AutoMorph v2
+type: software
+version: 2.0.0
+authors:
+  - name: AutoMorph v2 contributors
+abstract: >-
+  A compatibility-focused and performance-optimized downstream distribution
+  of the AutoMorph retinal vascular morphology analysis pipeline.
+keywords:
+  - retinal imaging
+  - retinal vasculature
+  - medical image analysis
+  - deep learning
+preferred-citation:
+  type: article
+  title: >-
+    AutoMorph: Automated Retinal Vascular Morphology Quantification Via a Deep
+    Learning Pipeline
+  authors:
+    - family-names: Zhou
+      given-names: Yukun
+    - family-names: Wagner
+      given-names: Siegfried K.
+    - family-names: Chia
+      given-names: Mark A.
+    - family-names: Zhao
+      given-names: An
+    - family-names: Woodward-Court
+      given-names: Peter
+    - family-names: Xu
+      given-names: Moucheng
+    - family-names: Struyven
+      given-names: Robbert
+    - family-names: Alexander
+      given-names: Daniel C.
+    - family-names: Keane
+      given-names: Pearse A.
+  journal: Translational Vision Science & Technology
+  volume: 11
+  issue: 7
+  start: 12
+  year: 2022
+  doi: 10.1167/tvst.11.7.12
+  url: https://doi.org/10.1167/tvst.11.7.12

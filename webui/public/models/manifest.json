@@ -1,0 +1,542 @@
+{
+  "version": 2,
+  "opset": 17,
+  "precision": "float16 weights, float32 arithmetic; disc/cup in float32 (it sets the M3 zones and is small)",
+  "source": "AutoMorph v2 runtime checkpoints (see automorph_v2/models/manifest.json)",
+  "models": {
+    "quality": {
+      "label": "M1 image quality (EfficientNet-B4)",
+      "input": [
+        1,
+        3,
+        512,
+        512
+      ],
+      "parts": [
+        {
+          "file": "models/quality_0.onnx",
+          "bytes": 36188687,
+          "sha256": "5329ed8155d4585e7aac974b5ba10f2292739571229f61084ab1d15766586656",
+          "member": "7_seed_28",
+          "check": {
+            "float32": {
+              "max_abs_diff": 1.1920928955078125e-07,
+              "mean_abs_diff": 6.731047363928155e-08,
+              "argmax_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 2.6061898097395897e-05,
+              "mean_abs_diff": 1.7375143215758726e-05,
+              "argmax_agreement": 1.0
+            }
+          }
+        },
+        {
+          "file": "models/quality_1.onnx",
+          "bytes": 36188687,
+          "sha256": "dc13d7f2ed5988853c80467ab9fb6789408e56ed293d269ccd355a2f54ca0481",
+          "member": "6_seed_30",
+          "check": {
+            "float32": {
+              "max_abs_diff": 5.781650543212891e-06,
+              "mean_abs_diff": 3.871197350235889e-06,
+              "argmax_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 0.0012638568878173828,
+              "mean_abs_diff": 0.0008425491978414357,
+              "argmax_agreement": 1.0
+            }
+          }
+        },
+        {
+          "file": "models/quality_2.onnx",
+          "bytes": 36188687,
+          "sha256": "87788a058a70a618faf339e5dec3d42c05f689116230f27dca6794e8634762a6",
+          "member": "5_seed_32",
+          "check": {
+            "float32": {
+              "max_abs_diff": 2.384185791015625e-07,
+              "mean_abs_diff": 1.4958641258999705e-07,
+              "argmax_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 6.9141387939453125e-06,
+              "mean_abs_diff": 4.581469056574861e-06,
+              "argmax_agreement": 1.0
+            }
+          }
+        },
+        {
+          "file": "models/quality_3.onnx",
+          "bytes": 36188687,
+          "sha256": "b483372950e9713ddd8cf1f52a57a28373e3c2b7faa4cd253588b2db2a39b10f",
+          "member": "4_seed_34",
+          "check": {
+            "float32": {
+              "max_abs_diff": 1.1920928955078125e-07,
+              "mean_abs_diff": 7.349694897129666e-08,
+              "argmax_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 9.5367431640625e-07,
+              "mean_abs_diff": 6.199150561769784e-07,
+              "argmax_agreement": 1.0
+            }
+          }
+        },
+        {
+          "file": "models/quality_4.onnx",
+          "bytes": 36188687,
+          "sha256": "70687d6dcbd3aa48cb892615cc4d85b11b161bbff325d3deef0fd57c9bc3d5ea",
+          "member": "3_seed_36",
+          "check": {
+            "float32": {
+              "max_abs_diff": 2.738088369369507e-07,
+              "mean_abs_diff": 1.708164489855335e-07,
+              "argmax_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 0.00018912553787231445,
+              "mean_abs_diff": 0.00012607518874574453,
+              "argmax_agreement": 1.0
+            }
+          }
+        },
+        {
+          "file": "models/quality_5.onnx",
+          "bytes": 36188687,
+          "sha256": "835bde0fcc2b8dc26d43c6a3281358b8b9e66bfd9336ed310cdd325cbff4b313",
+          "member": "2_seed_38",
+          "check": {
+            "float32": {
+              "max_abs_diff": 2.7008354663848877e-08,
+              "mean_abs_diff": 9.035526993272924e-09,
+              "argmax_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 3.4749507904052734e-05,
+              "mean_abs_diff": 2.3152146241045557e-05,
+              "argmax_agreement": 1.0
+            }
+          }
+        },
+        {
+          "file": "models/quality_6.onnx",
+          "bytes": 36188687,
+          "sha256": "f32c1a08e909be47c837302ae870869ad497b9a8236cbc7dbd95bd6ae77e12a4",
+          "member": "1_seed_40",
+          "check": {
+            "float32": {
+              "max_abs_diff": 1.6239937394857407e-08,
+              "mean_abs_diff": 5.419082071966841e-09,
+              "argmax_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 2.3234460968524218e-06,
+              "mean_abs_diff": 1.5099293477760511e-06,
+              "argmax_agreement": 1.0
+            }
+          }
+        },
+        {
+          "file": "models/quality_7.onnx",
+          "bytes": 36188687,
+          "sha256": "f6ed671e486b3938b3c91b7a14b73edaa7a4e2af538332facc799c0ce831939b",
+          "member": "0_seed_42",
+          "check": {
+            "float32": {
+              "max_abs_diff": 1.0952353477478027e-06,
+              "mean_abs_diff": 7.281972216333088e-07,
+              "argmax_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 0.000649571418762207,
+              "mean_abs_diff": 0.00043306979932822287,
+              "argmax_agreement": 1.0
+            }
+          }
+        }
+      ],
+      "members": "all 8 members (mean, AutoMorph v2 order)",
+      "bytes": 289509496
+    },
+    "vessel": {
+      "label": "M2 binary vessel (U-Net)",
+      "input": [
+        1,
+        3,
+        912,
+        912
+      ],
+      "parts": [
+        {
+          "file": "models/vessel_0.onnx",
+          "bytes": 17295142,
+          "sha256": "68db7ccb6ba2d35a5b68035ca47c3bb529aa808837dcbd0765c1e881ced116b6",
+          "member": "seed 24",
+          "check": {
+            "float32": {
+              "max_abs_diff": 5.632638931274414e-06,
+              "mean_abs_diff": 4.2518465193097654e-08,
+              "threshold_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 0.006152093410491943,
+              "mean_abs_diff": 2.7450982088339515e-05,
+              "threshold_agreement": 0.9999759541397353
+            }
+          }
+        },
+        {
+          "file": "models/vessel_1.onnx",
+          "bytes": 17295142,
+          "sha256": "51b1203bb94cd1c2ecd648d4661e571a7318ab9e527abd5842c4d030b15cca7f",
+          "member": "seed 26",
+          "check": {
+            "float32": {
+              "max_abs_diff": 1.2814998626708984e-06,
+              "mean_abs_diff": 3.5285108168636725e-08,
+              "threshold_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 0.0026316195726394653,
+              "mean_abs_diff": 1.7346008462482132e-05,
+              "threshold_agreement": 0.9999879770698676
+            }
+          }
+        },
+        {
+          "file": "models/vessel_2.onnx",
+          "bytes": 17295142,
+          "sha256": "2f878a3261d603ecc88c854c748f605937a24bf6e5e12069166b77b4d6cb69b3",
+          "member": "seed 28",
+          "check": {
+            "float32": {
+              "max_abs_diff": 0.0002028346061706543,
+              "mean_abs_diff": 6.120602336068259e-08,
+              "threshold_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 0.10557925701141357,
+              "mean_abs_diff": 4.5017564843874425e-05,
+              "threshold_agreement": 0.999974751846722
+            }
+          }
+        },
+        {
+          "file": "models/vessel_3.onnx",
+          "bytes": 17295142,
+          "sha256": "97535e343eb961500e345a5a23e69c42110bc2844b1331822ebd218c203eea0b",
+          "member": "seed 30",
+          "check": {
+            "float32": {
+              "max_abs_diff": 0.00014075636863708496,
+              "mean_abs_diff": 5.669738456504092e-08,
+              "threshold_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 0.2598664462566376,
+              "mean_abs_diff": 4.2310864955652505e-05,
+              "threshold_agreement": 0.9999639312096029
+            }
+          }
+        },
+        {
+          "file": "models/vessel_4.onnx",
+          "bytes": 17295142,
+          "sha256": "88d29c54f19332a857808842ed6268367ebaa17378fb6118f75db81c91acb39d",
+          "member": "seed 32",
+          "check": {
+            "float32": {
+              "max_abs_diff": 3.769993782043457e-05,
+              "mean_abs_diff": 4.6552088406315306e-08,
+              "threshold_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 0.04790183901786804,
+              "mean_abs_diff": 2.5786792321014218e-05,
+              "threshold_agreement": 0.9999771564327485
+            }
+          }
+        },
+        {
+          "file": "models/vessel_5.onnx",
+          "bytes": 17295142,
+          "sha256": "fbe51d8b8e01d1d4bd86d7d0609fee1353d28161e1d4cfcfea9181d14dcfc1fc",
+          "member": "seed 34",
+          "check": {
+            "float32": {
+              "max_abs_diff": 8.83340835571289e-05,
+              "mean_abs_diff": 5.916807666039858e-08,
+              "threshold_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 0.1295539140701294,
+              "mean_abs_diff": 4.200571129331365e-05,
+              "threshold_agreement": 0.9999663357956294
+            }
+          }
+        },
+        {
+          "file": "models/vessel_6.onnx",
+          "bytes": 17295142,
+          "sha256": "abf5d086d81a3c294491641f4750b2d43eab55e1422fd3ccea7c1f49e5f70d85",
+          "member": "seed 36",
+          "check": {
+            "float32": {
+              "max_abs_diff": 7.957220077514648e-06,
+              "mean_abs_diff": 4.293253752507553e-08,
+              "threshold_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 0.006950646638870239,
+              "mean_abs_diff": 1.9564031390473247e-05,
+              "threshold_agreement": 0.9999867747768544
+            }
+          }
+        },
+        {
+          "file": "models/vessel_7.onnx",
+          "bytes": 17295142,
+          "sha256": "b5a0a310193f3336318c5f49d6628128113add956f8528c80074348fb0ac638f",
+          "member": "seed 38",
+          "check": {
+            "float32": {
+              "max_abs_diff": 1.710653305053711e-05,
+              "mean_abs_diff": 5.163580141243074e-08,
+              "threshold_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 0.020437777042388916,
+              "mean_abs_diff": 2.916842458944302e-05,
+              "threshold_agreement": 0.9999831678978147
+            }
+          }
+        },
+        {
+          "file": "models/vessel_8.onnx",
+          "bytes": 17295142,
+          "sha256": "5405fe0048c4acf571c9d84fe008d75f6f3e95704132a6c2bebc9f8573ca51d5",
+          "member": "seed 40",
+          "check": {
+            "float32": {
+              "max_abs_diff": 1.3113021850585938e-06,
+              "mean_abs_diff": 3.415874871848246e-08,
+              "threshold_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 0.001462399959564209,
+              "mean_abs_diff": 1.6804189726826735e-05,
+              "threshold_agreement": 0.999984370190828
+            }
+          }
+        },
+        {
+          "file": "models/vessel_9.onnx",
+          "bytes": 17295142,
+          "sha256": "fd98163948a23fe9f0cc03b23cbf9f5a2d93bc2ad9426eef6603d5d9e1e68676",
+          "member": "seed 42",
+          "check": {
+            "float32": {
+              "max_abs_diff": 5.78761100769043e-05,
+              "mean_abs_diff": 5.8244953748953776e-08,
+              "threshold_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 0.13634762167930603,
+              "mean_abs_diff": 3.976829975727014e-05,
+              "threshold_agreement": 0.9999687403816558
+            }
+          }
+        }
+      ],
+      "members": "all 10 members (mean, AutoMorph v2 order)",
+      "bytes": 172951420
+    },
+    "artery_vein": {
+      "label": "M2 artery/vein (BF-Net trio)",
+      "input": [
+        1,
+        3,
+        720,
+        720
+      ],
+      "parts": [
+        {
+          "file": "models/artery_vein_0.onnx",
+          "bytes": 51880722,
+          "sha256": "a687385008245eb443a34343a59e528e6c8640d7f915700f885717d165ee3295",
+          "member": "trio seed 28",
+          "check": {
+            "float32": {
+              "max_abs_diff": 1.341104507446289e-05,
+              "mean_abs_diff": 2.420817324377822e-08,
+              "argmax_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 0.00682559609413147,
+              "mean_abs_diff": 1.5162184354267083e-05,
+              "argmax_agreement": 0.9999864969135802
+            }
+          }
+        },
+        {
+          "file": "models/artery_vein_1.onnx",
+          "bytes": 51880722,
+          "sha256": "b474df0b5ced7c1a4f6e0ed85e62faaffadd77a469e9159a46db5bf27d5c3832",
+          "member": "trio seed 30",
+          "check": {
+            "float32": {
+              "max_abs_diff": 5.21540641784668e-06,
+              "mean_abs_diff": 2.0271439638008815e-08,
+              "argmax_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 0.0037803053855895996,
+              "mean_abs_diff": 1.0843219570233487e-05,
+              "argmax_agreement": 0.9999807098765432
+            }
+          }
+        },
+        {
+          "file": "models/artery_vein_2.onnx",
+          "bytes": 51880722,
+          "sha256": "0ee9f57d6a258828a70367c7821e70218e785e76b444af33bb39a2e24a3fbf3a",
+          "member": "trio seed 32",
+          "check": {
+            "float32": {
+              "max_abs_diff": 4.947185516357422e-06,
+              "mean_abs_diff": 2.2284392997562463e-08,
+              "argmax_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 0.0034326910972595215,
+              "mean_abs_diff": 1.1947779057663865e-05,
+              "argmax_agreement": 0.9999787808641976
+            }
+          }
+        },
+        {
+          "file": "models/artery_vein_3.onnx",
+          "bytes": 51880722,
+          "sha256": "0bba471835c88444b16b4c681b5bc66d69e42223c66c821398cee30a61a740f6",
+          "member": "trio seed 34",
+          "check": {
+            "float32": {
+              "max_abs_diff": 4.708766937255859e-06,
+              "mean_abs_diff": 2.2448064740387963e-08,
+              "argmax_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 0.0026955604553222656,
+              "mean_abs_diff": 1.2976972357137129e-05,
+              "argmax_agreement": 0.9999787808641976
+            }
+          }
+        },
+        {
+          "file": "models/artery_vein_4.onnx",
+          "bytes": 51880722,
+          "sha256": "de0964c8b9a2baf498f32667295982d8f57371b62af306b1f44bb0a4f3ab6e58",
+          "member": "trio seed 36",
+          "check": {
+            "float32": {
+              "max_abs_diff": 8.165836334228516e-06,
+              "mean_abs_diff": 2.135868548691633e-08,
+              "argmax_agreement": 0.9999980709876544
+            },
+            "float16_weights": {
+              "max_abs_diff": 0.0040483176708221436,
+              "mean_abs_diff": 1.0105076398758683e-05,
+              "argmax_agreement": 0.9999787808641976
+            }
+          }
+        },
+        {
+          "file": "models/artery_vein_5.onnx",
+          "bytes": 51880722,
+          "sha256": "f8d9a697446d4e80d90d2552eefc8641622402e17d56a57a6f02ef5d97154a2b",
+          "member": "trio seed 38",
+          "check": {
+            "float32": {
+              "max_abs_diff": 5.662441253662109e-06,
+              "mean_abs_diff": 2.246223296253902e-08,
+              "argmax_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 0.00537484884262085,
+              "mean_abs_diff": 1.467725360271288e-05,
+              "argmax_agreement": 0.9999768518518518
+            }
+          }
+        },
+        {
+          "file": "models/artery_vein_6.onnx",
+          "bytes": 51880722,
+          "sha256": "2625e430e1933281970650b13a2e7e221545aa24b9bec864193d0c26aefe05b7",
+          "member": "trio seed 40",
+          "check": {
+            "float32": {
+              "max_abs_diff": 5.602836608886719e-06,
+              "mean_abs_diff": 2.3431955042951813e-08,
+              "argmax_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 0.014451980590820312,
+              "mean_abs_diff": 1.5108001207408961e-05,
+              "argmax_agreement": 0.9999556327160494
+            }
+          }
+        },
+        {
+          "file": "models/artery_vein_7.onnx",
+          "bytes": 51880722,
+          "sha256": "390b98848aa733549abe8013baac26da1abd10baa2f28990ccb69f841ed29fee",
+          "member": "trio seed 42",
+          "check": {
+            "float32": {
+              "max_abs_diff": 6.586313247680664e-06,
+              "mean_abs_diff": 2.1890382839728773e-08,
+              "argmax_agreement": 1.0
+            },
+            "float16_weights": {
+              "max_abs_diff": 0.004422694444656372,
+              "mean_abs_diff": 1.2866892575402744e-05,
+              "argmax_agreement": 0.9999652777777778
+            }
+          }
+        }
+      ],
+      "members": "all 8 members (mean, AutoMorph v2 order)",
+      "bytes": 415045776
+    },
+    "disc_cup": {
+      "label": "M2 optic disc/cup (W-Net x8)",
+      "input": [
+        1,
+        3,
+        512,
+        512
+      ],
+      "members": "all 8 members (mean softmax)",
+      "bytes": 2581539,
+      "parts": [
+        {
+          "file": "models/disc_cup.onnx",
+          "bytes": 2581539,
+          "sha256": "0aad2fcc9e52a054dbb4f4976fd5335f2fbcffb86215f2c7a6ff23c9965fecfb",
+          "member": "8 W-Nets, mean softmax",
+          "check": {
+            "float32": {
+              "max_abs_diff": 1.7285346984863281e-06,
+              "mean_abs_diff": 5.4433315632707036e-09,
+              "argmax_agreement": 1.0
+            }
+          },
+          "precision": "float32"
+        }
+      ]
+    }
+  }
+}

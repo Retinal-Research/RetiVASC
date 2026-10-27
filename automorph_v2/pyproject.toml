@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools==80.9.0", "wheel==0.44.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "automorph-v2"
+version = "2.0.0"
+description = "Portable, strict-output AutoMorph retinal image analysis pipeline"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+  "numpy==1.26.4",
+  "opencv-python-headless==4.10.0.84",
+  "pandas==2.3.3",
+  "Pillow==10.4.0",
+  "scipy==1.13.1",
+  "scikit-image==0.24.0",
+  "efficientnet_pytorch==0.7.1",
+  "tqdm==4.67.1",
+]
+
+[project.optional-dependencies]
+report = ["matplotlib==3.10.8"]
+test = ["matplotlib==3.10.8", "pytest==7.1.2"]
+
+[project.scripts]
+automorph-v2 = "automorph_v2.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["automorph_v2*", "v2*"]
+exclude = ["tests*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "src/v2"]
+addopts = "-ra"
