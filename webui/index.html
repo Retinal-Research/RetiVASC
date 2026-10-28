@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <title>RetiVASC Studio</title>
+    <!-- a static host (GitHub Pages) cannot send the cross-origin isolation headers that the multi-threaded
+         CPU fallback needs; this service worker adds them, and does nothing where the server already sends them -->
+    <script src="coi-serviceworker.js"></script>
     <script>
       // apply the saved day/night theme and accent before the first paint (see src/ui/appearance.ts)
       try {

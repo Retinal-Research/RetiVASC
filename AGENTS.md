@@ -45,6 +45,15 @@ To serve a static build instead: `npm run build` writes `webui/dist`; `npm run p
 - send `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`, which multi-threaded CPU fallback needs;
 - serve `.mjs` as `text/javascript` and `.wasm` as `application/wasm`.
 
+### Static site on GitHub Pages
+
+The browser version needs no server at all: the page is static files, and every step runs on the visitor's computer.
+- Pages limits a site to about 1 GB, so the models are hosted elsewhere. Build with `VITE_MODELS_URL` set to their folder, e.g. a Hugging Face model repository's `https://huggingface.co/<org>/<repo>/resolve/main/`. It must allow cross-origin requests, which Hugging Face does. Without the variable the page loads `models/` next to itself, as before.
+- Pages cannot send the isolation headers. `webui/public/coi-serviceworker.js` adds them in the browser (the page reloads once on the first visit); where the server already sends them it does nothing.
+- `.github/workflows/pages.yml` builds and deploys on every push to `main`, once the repository variable `RETIVASC_MODELS_URL` is set and Pages uses "GitHub Actions" as its source. Changes are tested on `beta` first.
+- Offline sites (a hospital intranet, a mobile screening unit) build without `VITE_MODELS_URL`, so the models ship with the page and nothing is downloaded at run time; the server (B) does the same.
+- Without a RetiVASC server the server steps are hidden, and the workflow starts by itself, as in A.
+
 ## B. Server (about 3 minutes plus downloads)
 
 ### Windows
