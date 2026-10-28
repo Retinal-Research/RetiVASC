@@ -10,7 +10,7 @@ import { int, mb, ms, pct } from './format';
 import { ImageView } from './ImageView';
 import { countLabels, isLayer, LAYER_LABEL, layerCanvas, LEGEND, type LayerKind, type LayerValue } from './render';
 import { AnalysisView } from './AnalysisPanel';
-import { BatchInspector } from './BatchPanel';
+import { FolderInspector } from './FolderPanel';
 import { FeaturesView } from './FeaturesPanel';
 import { ANALYSIS_STEPS, SheetProgress, SheetSummaryView } from './SheetPanel';
 
@@ -131,12 +131,12 @@ export function Inspector({ node }: { node?: StudioNode }) {
       <p>{spec.subtitle}</p>
     </header>
   );
-  if (node.data.type === 'batch.folder') {
+  if (node.data.type === 'input.folder') {
     return (
       <aside className="inspector">
         {head}
         <div className="iscroll">
-          <BatchInspector />
+          <FolderInspector nodeId={node.id} params={node.data.params} />
         </div>
       </aside>
     );

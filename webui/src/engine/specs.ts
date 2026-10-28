@@ -3,11 +3,12 @@
 
 import { engine } from '../runtime/engine';
 import type { ImageHandle, LabelOutput, M0Output, M3Output, ModelKey, Progress, QualityOutput, VesselOutput } from '../runtime/protocol';
+import type { BatchItem } from './executor';
 import { readSource } from './sources';
 import type { M0Value, NodeValue, PortType } from './values';
 import { serverAnalyze, studyPhotos, studySheet } from './study';
 
-export type NodeGroup = 'input' | 'm0' | 'm1' | 'm2' | 'm3' | 'view' | 'batch' | 'server' | 'study';
+export type NodeGroup = 'input' | 'm0' | 'm1' | 'm2' | 'm3' | 'view' | 'server' | 'study';
 
 export interface PortSpec {
   id: string;
@@ -24,6 +25,8 @@ export interface RunContext {
   inputs: Record<string, NodeValue | undefined>;
   params: Record<string, unknown>;
   progress: (p: Progress) => void;
+  /** in a folder run: the photo this pass is for */
+  batch?: BatchItem;
 }
 
 export interface NodeSpec {
@@ -45,7 +48,6 @@ export const GROUP_LABEL: Record<NodeGroup, string> = {
   m2: 'AutoMorph M2',
   m3: 'AutoMorph M3',
   view: 'View',
-  batch: 'Batch',
   server: 'Server · full model',
   study: 'Study sheet',
 };
@@ -71,6 +73,22 @@ const specs: NodeSpec[] = [
       const { name, bytes } = await readSource(String(ctx.params.source ?? DEFAULT_SOURCE));
       const h = await engine.call<ImageHandle>({ op: 'decode', bytes, name }, ctx.progress, [bytes]);
       return { image: { kind: 'fundus', name, source: String(ctx.params.source ?? DEFAULT_SOURCE), ...h } };
+    },
+  },
+  {
+    // the steps connected after it run once per photo (src/engine/executor.ts)
+    type: 'input.folder',
+    title: 'Photo folder',
+    subtitle: 'Up to 1000 photos; the steps after it run on each one',
+    group: 'input',
+    inputs: [],
+    outputs: [{ id: 'image', label: 'photo', type: 'fundus' }],
+    async run(ctx) {
+      if (!ctx.batch) throw new Error('choose a photo folder');
+      const { file, path } = ctx.batch.photo;
+      const bytes = await file.arrayBuffer();
+      const h = await engine.call<ImageHandle>({ op: 'decode', bytes, name: file.name }, ctx.progress, [bytes]);
+      return { image: { kind: 'fundus', name: path, source: `folder:${path}`, ...h } };
     },
   },
   {
@@ -174,18 +192,6 @@ const specs: NodeSpec[] = [
         for (const k of Object.keys(result.features)) if (!/^(Disc|Cup|CDR)_/.test(k)) result.features[k] = null;
       }
       return { features: { kind: 'features', result, base, gradable, forced } };
-    },
-  },
-  {
-    // runs from its own Start button (src/engine/batch.ts), not from Run: the canvas Run leaves it alone
-    type: 'batch.folder',
-    title: 'Folder · batch',
-    subtitle: `Up to 1000 photos through M0–M3, one at a time; stop and resume any time`,
-    group: 'batch',
-    inputs: [],
-    outputs: [],
-    async run() {
-      return {};
     },
   },
   {

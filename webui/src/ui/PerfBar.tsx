@@ -175,8 +175,8 @@ export function PerfBar({ engine, browserStep, lastRun, server }: Props) {
   const webgpu = engine?.backend === 'webgpu';
   const device = !engine ? 'starting…' : webgpu ? `WebGPU · ${engine.adapter}` : `CPU · ${engine.threads} thread${engine.threads === 1 ? '' : 's'}`;
   const browserRun = lastRun && lastRun.ran > 0 && !lastRun.errors ? lastRun : undefined;
-  const [browserTime, setBrowserTime] = useState<number>();
-  useEffect(() => { if (browserRun) setBrowserTime(browserRun.ms); }, [browserRun]);
+  const [browserTime, setBrowserTime] = useState<{ ms: number; photos: number }>();
+  useEffect(() => { if (browserRun) setBrowserTime({ ms: browserRun.ms, photos: browserRun.photos }); }, [browserRun]);
 
   const samples = stats?.samples ?? [];
   const last = samples.at(-1);
@@ -202,7 +202,7 @@ export function PerfBar({ engine, browserStep, lastRun, server }: Props) {
           values={webgpu ? busy : undefined}
           text={webgpu ? `${(busy.at(-1) ?? 0).toFixed(0).padStart(3)}%` : undefined}
         />
-        <Cell label="Last run" title="How long the last run of the browser workflow took (one photo)" text={browserTime === undefined ? undefined : `${ms(browserTime)} · 1 photo`} />
+        <Cell label="Last run" title="How long the last run of the browser workflow took" text={browserTime && `${ms(browserTime.ms)} · ${browserTime.photos} photo${browserTime.photos === 1 ? '' : 's'}`} />
         <span className={`perf-state ${browserStep ? 'on' : ''}`}>{browserStep ? `Running ${browserStep}` : 'Idle'}</span>
       </div>
 

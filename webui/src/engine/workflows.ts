@@ -34,38 +34,49 @@ const serverFull: WorkflowFile = {
   edges: [link('photo', 'image', 'full', 'image')],
 };
 
+const fullPipeline: WorkflowFile = {
+  format: 'retivasc-studio/1',
+  name: 'AutoMorph · full pipeline',
+  description: 'Preprocess, grade quality, segment vessels, arteries/veins and the optic disc, then measure the 72 vascular features.',
+  nodes: [
+    photo(500),
+    m0(500),
+    { id: 'm1', type: 'automorph.m1', position: { x: 690, y: 0 } },
+    { id: 'vessel', type: 'automorph.vessel', position: { x: 690, y: 285 } },
+    { id: 'av', type: 'automorph.av', position: { x: 690, y: 665 } },
+    { id: 'disc', type: 'automorph.disc', position: { x: 690, y: 1045 } },
+    { id: 'view', type: 'view.overlay', position: { x: 1060, y: 460 } },
+    { id: 'm3', type: 'automorph.m3', position: { x: 1060, y: -40 } },
+  ],
+  edges: [
+    link('photo', 'image', 'm0', 'image'),
+    link('m0', 'image', 'm1', 'image'),
+    link('m0', 'image', 'vessel', 'image'),
+    link('m0', 'image', 'av', 'image'),
+    link('m0', 'image', 'disc', 'image'),
+    link('m0', 'image', 'view', 'image'),
+    link('m1', 'quality', 'view', 'quality'),
+    link('av', 'av', 'view', 'av'),
+    link('disc', 'disc', 'view', 'disc'),
+    link('m0', 'image', 'm3', 'image'),
+    link('vessel', 'vessel', 'm3', 'vessel'),
+    link('av', 'av', 'm3', 'av'),
+    link('disc', 'disc', 'm3', 'disc'),
+    link('m1', 'quality', 'm3', 'quality'),
+  ],
+};
+
+/** The same steps on a folder: the Photo folder node in place of the single photo. */
+const folderPipeline: WorkflowFile = {
+  ...fullPipeline,
+  name: 'AutoMorph · folder of photos',
+  description: 'The full pipeline on up to 1000 photos, one after another. Stop any time; Run again resumes. One CSV for the folder.',
+  nodes: fullPipeline.nodes.map((n) => (n.id === 'photo' ? { id: 'photo', type: 'input.folder', position: n.position } : n)),
+};
+
 export const WORKFLOWS: WorkflowFile[] = [
-  {
-    format: 'retivasc-studio/1',
-    name: 'AutoMorph · full pipeline',
-    description: 'Preprocess, grade quality, segment vessels, arteries/veins and the optic disc, then measure the 72 vascular features.',
-    nodes: [
-      photo(500),
-      m0(500),
-      { id: 'm1', type: 'automorph.m1', position: { x: 690, y: 0 } },
-      { id: 'vessel', type: 'automorph.vessel', position: { x: 690, y: 285 } },
-      { id: 'av', type: 'automorph.av', position: { x: 690, y: 665 } },
-      { id: 'disc', type: 'automorph.disc', position: { x: 690, y: 1045 } },
-      { id: 'view', type: 'view.overlay', position: { x: 1060, y: 460 } },
-      { id: 'm3', type: 'automorph.m3', position: { x: 1060, y: -40 } },
-    ],
-    edges: [
-      link('photo', 'image', 'm0', 'image'),
-      link('m0', 'image', 'm1', 'image'),
-      link('m0', 'image', 'vessel', 'image'),
-      link('m0', 'image', 'av', 'image'),
-      link('m0', 'image', 'disc', 'image'),
-      link('m0', 'image', 'view', 'image'),
-      link('m1', 'quality', 'view', 'quality'),
-      link('av', 'av', 'view', 'av'),
-      link('disc', 'disc', 'view', 'disc'),
-      link('m0', 'image', 'm3', 'image'),
-      link('vessel', 'vessel', 'm3', 'vessel'),
-      link('av', 'av', 'm3', 'av'),
-      link('disc', 'disc', 'm3', 'disc'),
-      link('m1', 'quality', 'm3', 'quality'),
-    ],
-  },
+  fullPipeline,
+  folderPipeline,
   {
     format: 'retivasc-studio/1',
     name: 'Image quality check',
@@ -109,13 +120,6 @@ export const WORKFLOWS: WorkflowFile[] = [
       link('av', 'av', 'view', 'av'),
       link('disc', 'disc', 'view', 'disc'),
     ],
-  },
-  {
-    format: 'retivasc-studio/1',
-    name: 'Batch · folder of photos',
-    description: 'Up to 1000 photos through the full pipeline in this browser; stop and resume any time, then download one CSV.',
-    nodes: [{ id: 'batch', type: 'batch.folder', position: { x: 0, y: 0 } }],
-    edges: [],
   },
   serverFull,
   studySheet,

@@ -14,7 +14,7 @@ interface Props {
   server: boolean;
 }
 
-const GROUPS: NodeGroup[] = ['input', 'm0', 'm1', 'm2', 'm3', 'view', 'batch', 'server', 'study'];
+const GROUPS: NodeGroup[] = ['input', 'm0', 'm1', 'm2', 'm3', 'view', 'server', 'study'];
 
 // The study sheet is an optional server module; its steps are shown only where it is installed.
 function useSheet(server: boolean): boolean {

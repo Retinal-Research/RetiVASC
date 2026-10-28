@@ -28,7 +28,6 @@
   --g-m3: #f472b6;
   --port-features: #f472b6;
   --g-view: #34d399;
-  --g-batch: #a3e635;
   --g-study: #60a5fa;
   --g-server: #c084fc;
   --port-analysis: #c084fc;
@@ -86,7 +85,6 @@
   --g-m3: #db2777;
   --port-features: #db2777;
   --g-view: #059669;
-  --g-batch: #65a30d;
   --g-study: #2563eb;
   --g-server: #9333ea;
   --port-analysis: #9333ea;
@@ -662,20 +660,17 @@ code { font-family: var(--mono); font-size: 11.5px; }
 .fz-b { background: rgba(251, 191, 36, 0.8); } .fz-c { background: rgba(96, 165, 250, 0.7); } .fz-d { border: 2px solid var(--text); background: transparent; box-sizing: border-box; }
 button.sfile { background: none; cursor: pointer; text-align: left; font: inherit; font-size: 11px; }
 
-/* batch node */
-.g-batch .kdot { background: var(--g-batch); }
-.node.g-batch { --g: var(--g-batch); width: 360px; }
-.ikicker.g-batch { color: var(--g-batch); }
-.node-foot.b-run .sdot { background: var(--g-batch); animation: pulse 1s infinite; }
-.batch .bad, .hint.bad { color: var(--bad); }
+/* Photo folder node */
+.node-foot.f-run .sdot { background: var(--g); animation: pulse 1s infinite; }
+.folder .bad, .hint.bad { color: var(--bad); }
 .bprog { display: flex; flex-direction: column; gap: 4px; }
 .bbar { display: flex; height: 6px; border-radius: 3px; background: var(--panel-3); overflow: hidden; }
-.bbar i { display: block; height: 100%; background: var(--g-batch); }
+.bbar i { display: block; height: 100%; background: var(--ok); }
 .bbar i.err { background: var(--bad); }
 .btable { width: 100%; border-collapse: collapse; font-size: 11.5px; }
 .btable th { text-align: left; color: var(--faint); font-weight: 600; padding: 4px 6px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel); }
 .btable td { padding: 3px 6px; border-bottom: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
 .btable td.bname { max-width: 220px; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
 .btable tr.b-pending td { color: var(--faint); }
-.btable tr.b-running td { color: var(--g-batch); }
+.btable tr.b-running td { color: var(--ok-ink); }
 .btable tr.b-error td { color: var(--bad); }

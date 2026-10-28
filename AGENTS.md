@@ -183,7 +183,7 @@ Machine-specific settings live in `retivasc.local.json` at the repository root. 
 - **`webui/`** (React, TypeScript, Vite, onnxruntime-web).
   - Node types are in `src/engine/specs.ts` and ready-made workflows in `src/engine/workflows.ts`.
   - All inference and pixel work happens in `src/runtime/engine.worker.ts`.
-  - Batch mode (`src/engine/batch.ts`, the *Batch · folder of photos* workflow) runs a folder of up to 1000 photos through the same engine operations as the canvas steps, one photo at a time. Each finished photo is stored in IndexedDB, so choosing the same folder again resumes. The engine keeps up to 2 GB of model weights loaded, which is every ensemble member, so models load once per folder.
+  - The *Photo folder* input node (`src/engine/folder.ts`) takes up to 1000 photos. The executor then runs every step downstream of it once per photo, the whole downstream graph for one photo before the next, so memory holds one photo at a time. Each finished photo's grades and features are stored in IndexedDB; choosing the same folder again and pressing Run resumes. The engine keeps up to 2 GB of model weights loaded, which is every ensemble member, so models load once per folder.
   - Ports of AutoMorph's pre- and post-processing are in `src/automorph/`; the 72 measurements are in `src/automorph/m3/`.
   - Models are listed with SHA-256 in `public/models/manifest.json`.
   - Server steps call `/api/*`, through `src/server/api.ts`.

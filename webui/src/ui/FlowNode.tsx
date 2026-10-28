@@ -9,7 +9,7 @@ import { DEFAULT_VIEW, useStudio, type StudioNodeData } from './context';
 import { int, mb, pct, statusText } from './format';
 import { countLabels, isLayer, LAYER_LABEL, layerCanvas, type LayerKind } from './render';
 import { AnalysisView } from './AnalysisPanel';
-import { BatchBody, batchStatus, useBatch } from './BatchPanel';
+import { FolderBody, FolderFoot } from './FolderPanel';
 import { FeaturesView } from './FeaturesPanel';
 import { ANALYSIS_STEPS, SheetProgress, SheetSummaryView } from './SheetPanel';
 import { DevicePick, FilePick, StudyPhotosBody } from './StudyNodes';
@@ -221,8 +221,8 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
           </>
         );
       }
-      case 'batch.folder':
-        return <BatchBody />;
+      case 'input.folder':
+        return <FolderBody nodeId={id} params={data.params} />;
       case 'server.analyze': {
         const v = out?.kind === 'analysis' ? out : undefined;
         return (
@@ -313,8 +313,8 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
         )}
         {body}
       </div>
-      {data.type === 'batch.folder' ? (
-        <BatchFoot />
+      {data.type === 'input.folder' ? (
+        <FolderFoot nodeId={id} params={data.params} />
       ) : (
         <footer className="node-foot">
           <span className="sdot" />
@@ -325,17 +325,6 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
         </footer>
       )}
     </div>
-  );
-}
-
-/** The batch node's status comes from the batch run, not from the canvas Run. */
-function BatchFoot() {
-  const b = useBatch();
-  return (
-    <footer className={`node-foot ${b.running ? 'b-run' : ''}`}>
-      <span className="sdot" />
-      <span className="stext">{batchStatus(b)}</span>
-    </footer>
   );
 }
 
