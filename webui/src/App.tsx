@@ -28,6 +28,7 @@ import { DRAG_TYPE, Sidebar } from './ui/Sidebar';
 import { TopBar } from './ui/TopBar';
 import { useAppearance } from './ui/appearance';
 import { Login, useAccount } from './ui/Login';
+import { PerfBar } from './ui/PerfBar';
 import { api } from './server/api';
 import { exposeTestHooks } from './testHooks';
 
@@ -296,6 +297,7 @@ export function App() {
     [executor, engineInfo, samples, running, setParams, setView],
   );
   const selectedNode = nodes.find((n) => n.id === selected);
+  const browserNode = nodes.find((n) => n.data.state.status === 'running' && SPECS[n.data.type]?.group !== 'server');
 
   return (
     <StudioContext.Provider value={studio}>
@@ -324,6 +326,9 @@ export function App() {
           </ReactFlow>
         </main>
         <Inspector node={selectedNode} />
+        {(account.mode === 'ready' || account.mode === 'offline') && (
+          <PerfBar engine={engineInfo} browserStep={browserNode && SPECS[browserNode.data.type]?.title} lastRun={lastRun} server={account.mode === 'ready'} />
+        )}
         {account.mode === 'signin' && <Login onDone={(a) => setAccount({ mode: 'ready', account: a })} />}
       </div>
     </StudioContext.Provider>

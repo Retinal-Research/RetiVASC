@@ -183,6 +183,7 @@ Machine-specific settings live in `retivasc.local.json` at the repository root. 
   - `automorph.py`: stages photos, runs `python -m automorph_v2 run <data_root>` as a subprocess and reads its CSVs.
   - `accounts.py`: bcrypt accounts and HMAC session tokens.
   - `selftest.py`: the acceptance test.
+  - `monitor.py`: CPU, memory and GPU load for the status bar (psutil; `ioreg` on macOS, `nvidia-smi` on NVIDIA).
 - **`automorph_v2/`** is run unchanged, through its command line. Do not edit it to fix RetiVASC behaviour.
 - **Optional study-sheet module.** The server can fill and audit a study's Excel results sheet when a separate, study-specific `retivasc_sheet` package is installed next to it. That package is not part of this repository. Without it, `/api/server` reports `"features": {"sheet": false}`, `/api/jobs/sheet` returns 404, and the web UI hides those steps.
 
@@ -194,6 +195,7 @@ API summary:
 | POST | `/api/logout` | Ends the session |
 | GET | `/api/me` | The signed-in user |
 | GET | `/api/server` | Server status |
+| GET | `/api/stats` | The last minute of CPU, memory and GPU load, and the latest analysis time, for the status bar |
 | GET | `/api/jobs` | The caller's jobs |
 | POST | `/api/jobs/analyze` | Multipart upload of `files[]` (photos) |
 | GET | `/api/jobs/{id}` | Status and result of one job |

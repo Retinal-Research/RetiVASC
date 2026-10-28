@@ -5,6 +5,7 @@ fastapi==0.128.0
 uvicorn==0.40.0
 python-multipart==0.0.21
 bcrypt==5.0.0
+psutil==7.2.2
 # tests
 pytest==9.0.2
 httpx==0.28.1

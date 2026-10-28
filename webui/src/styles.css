@@ -123,7 +123,7 @@ code { font-family: var(--mono); font-size: 11.5px; }
 .app {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr) 392px;
-  grid-template-rows: 56px minmax(0, 1fr);
+  grid-template-rows: 56px minmax(0, 1fr) auto;
   height: 100vh;
 }
 
@@ -487,6 +487,47 @@ code { font-family: var(--mono); font-size: 11.5px; }
   background: var(--panel-2);
   font-family: var(--mono);
   font-size: 12px;
+}
+
+/* ---------------------------------------------------------------- server load (status bar) */
+.perfbar {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  padding: 2px 16px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+/* the same columns in every row, so the two machines line up */
+.perf-row { display: grid; grid-template-columns: 300px 170px 220px 230px 190px minmax(0, 1fr); align-items: center; column-gap: 14px; height: 24px; }
+.perf-row + .perf-row { border-top: 1px dashed var(--line); }
+.perf-host { display: inline-flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; }
+.perf-host .sdot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--faint); }
+.perf-host.active .sdot { background: var(--ok); animation: pulse 1.2s infinite; }
+.perf-host.active .perf-title { color: var(--ok-ink); }
+.perf-title { color: var(--faint); text-transform: uppercase; letter-spacing: 0.06em; font-size: 10.5px; font-weight: 600; }
+.perf-device { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.perf-note { color: var(--faint); }
+.perf-note.bad { color: var(--bad); }
+.meter { --m: var(--accent); display: inline-flex; align-items: center; gap: 7px; }
+.meter.warm { --m: var(--warn); }
+.meter.hot { --m: var(--bad); }
+.meter-label { color: var(--faint); font-weight: 600; font-size: 10.5px; width: 46px; flex: none; }
+.meter-value.none { color: var(--faint); }
+.perf-gpus { display: flex; gap: 14px; min-width: 0; }
+.meter-value { color: var(--text); font-family: var(--mono); font-size: 11px; white-space: pre; min-width: 4ch; }
+.spark { display: block; border-bottom: 1px solid var(--line-2); }
+.spark-line { fill: none; stroke: var(--m); stroke-width: 1.3; stroke-linejoin: round; }
+.spark-fill { fill: color-mix(in srgb, var(--m) 20%, transparent); }
+.perf-state { justify-self: end; color: var(--faint); overflow: hidden; text-overflow: ellipsis; }
+.perf-state.on { color: var(--ok-ink); }
+
+@media (max-width: 1360px) {
+  .perf-row { grid-template-columns: 220px 150px 200px 220px 170px minmax(0, 1fr); column-gap: 10px; }
 }
 
 @media (max-width: 1180px) {
