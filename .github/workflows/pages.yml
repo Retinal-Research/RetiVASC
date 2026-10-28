@@ -2,7 +2,7 @@
 # Only main is published: changes are tested on beta (the lab test machine), then merged into main.
 # Pages limits a site to about 1 GB and 100 GB of traffic a month, so the 0.85 GB of models are not
 # part of the site; the page downloads them from RETIVASC_MODELS_URL (a repository variable, e.g. a
-# Hugging Face model repository's https://huggingface.co/<org>/<repo>/resolve/main/), which must
+# Hugging Face model repository at a version tag, https://huggingface.co/<owner>/<repo>/resolve/<tag>/), which must
 # allow cross-origin requests. Without that variable the job is skipped.
 name: pages
 on:
@@ -42,7 +42,7 @@ jobs:
           rm -f dist/models/*.onnx   # never part of the site, even if present
       - name: Check that the models are reachable from a browser
         run: |
-          url="${{ vars.RETIVASC_MODELS_URL }}"; url="${url%/}/disc_cup.onnx"
+          url="${{ vars.RETIVASC_MODELS_URL }}"; url="${url%/}/disc_cup/disc_cup.onnx"
           curl -sfIL -H 'Origin: https://example.github.io' "$url" | grep -i '^access-control-allow-origin' \
             || { echo "::error::$url is missing or does not allow cross-origin requests"; exit 1; }
       - uses: actions/upload-pages-artifact@v3

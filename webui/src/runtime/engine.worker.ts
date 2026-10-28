@@ -183,7 +183,8 @@ function part(key: ModelKey, index: number) {
 
 async function download(key: ModelKey, index: number, progress?: (p: Progress) => void): Promise<Uint8Array> {
   const info = part(key, index);
-  const url = new URL(modelsUrl ? `${modelsUrl}${info.file.replace(/^models\//, '')}` : `${base}${info.file}`, self.location.href).href;
+  // a model host keeps one folder per model (quality/, vessel/, artery_vein/, disc_cup/); models/ here is flat
+  const url = new URL(modelsUrl ? `${modelsUrl}${key}/${info.file.split('/').pop()}` : `${base}${info.file}`, self.location.href).href;
   const cacheKey = `${url}?sha256=${info.sha256.slice(0, 16)}`;
   const cache = 'caches' in self ? await caches.open(CACHE_NAME) : undefined;
   const hit = await cache?.match(cacheKey);
