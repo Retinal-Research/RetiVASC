@@ -27,7 +27,9 @@ interface Loaded { session: ort.InferenceSession; backend: Backend; bytes: numbe
 const sessions = new Map<string, Loaded>();
 const loading = new Map<string, Promise<Loaded & { loadMs: number }>>();
 const downloads = new Map<string, Promise<Uint8Array>>();
-const SESSION_BUDGET = 1.0 * 2 ** 30; // bytes of weights held at once (float32 once loaded)
+// bytes of weights held at once (float32 once loaded): every member of all four models (about 1.7 GB),
+// so a batch loads each model once for the whole folder
+const SESSION_BUDGET = 2.0 * 2 ** 30;
 let manifest: Manifest | undefined;
 let base = '/';
 // where the .onnx files are; a static site keeps them elsewhere (GitHub Pages limits a site to 1 GB)

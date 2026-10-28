@@ -29,6 +29,7 @@ import { TopBar } from './ui/TopBar';
 import { useAppearance } from './ui/appearance';
 import { Login, useAccount } from './ui/Login';
 import { PerfBar } from './ui/PerfBar';
+import { useBatch } from './ui/BatchPanel';
 import { api } from './server/api';
 import { exposeTestHooks } from './testHooks';
 
@@ -98,12 +99,23 @@ export function App() {
   const counter = useRef(1);
   const fitPending = useRef(false);
   const nodesReady = useNodesInitialized();
+  const batchRun = useBatch();
+  const batchRunning = useRef(false);
+  batchRunning.current = batchRun.running;
+
+  // closing the page stops a batch; finished photos are kept, but say so
+  useEffect(() => {
+    if (!batchRun.running) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [batchRun.running]);
 
   // frame a freshly loaded workflow once React Flow has measured its nodes
   useEffect(() => {
     if (!nodesReady || !fitPending.current) return;
     fitPending.current = false;
-    void flow.fitView({ padding: 0.06, duration: 250 });
+    void flow.fitView({ padding: 0.06, duration: 250, maxZoom: 1 });
   }, [nodesReady, flow]);
 
   const patchNode = useCallback(
@@ -119,6 +131,7 @@ export function App() {
       again.current = true;
       return;
     }
+    if (batchRunning.current) return;  // the batch has the engine; one run at a time
     busy.current = true;
     setRunning(true);
     try {
@@ -297,12 +310,13 @@ export function App() {
     [executor, engineInfo, samples, running, setParams, setView],
   );
   const selectedNode = nodes.find((n) => n.id === selected);
+  const batchStep = batchRun.current && `Batch · ${batchRun.current.stage}`;
   const browserNode = nodes.find((n) => n.data.state.status === 'running' && SPECS[n.data.type]?.group !== 'server');
 
   return (
     <StudioContext.Provider value={studio}>
       <div className="app">
-        <TopBar name={name} engine={engineInfo} engineError={engineError} running={running} lastRun={lastRun} onRun={() => void run()} onSave={save} onOpen={(f) => void open(f)} appearance={appearance} theme={theme} onAppearance={setAppearance} account={account} onSignOut={() => void api.logout().finally(() => setAccount({ mode: 'signin' }))} />
+        <TopBar name={name} engine={engineInfo} engineError={engineError} running={running || batchRun.running} lastRun={lastRun} onRun={() => void run()} onSave={save} onOpen={(f) => void open(f)} appearance={appearance} theme={theme} onAppearance={setAppearance} account={account} onSignOut={() => void api.logout().finally(() => setAccount({ mode: 'signin' }))} />
         <Sidebar current={name} onLoad={(wf) => load(wf)} onAdd={(t) => addNode(t)} server={account.mode === 'ready'} />
         <main className="canvas" onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} onDrop={onDrop}>
           <ReactFlow<StudioNode, Edge>
@@ -327,7 +341,7 @@ export function App() {
         </main>
         <Inspector node={selectedNode} />
         {(account.mode === 'ready' || account.mode === 'offline') && (
-          <PerfBar engine={engineInfo} browserStep={browserNode && SPECS[browserNode.data.type]?.title} lastRun={lastRun} server={account.mode === 'ready'} />
+          <PerfBar engine={engineInfo} browserStep={batchStep || (browserNode && SPECS[browserNode.data.type]?.title)} lastRun={lastRun} server={account.mode === 'ready'} />
         )}
         {account.mode === 'signin' && <Login onDone={(a) => setAccount({ mode: 'ready', account: a })} />}
       </div>

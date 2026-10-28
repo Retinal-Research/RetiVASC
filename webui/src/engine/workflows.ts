@@ -110,6 +110,13 @@ export const WORKFLOWS: WorkflowFile[] = [
       link('disc', 'disc', 'view', 'disc'),
     ],
   },
+  {
+    format: 'retivasc-studio/1',
+    name: 'Batch · folder of photos',
+    description: 'Up to 1000 photos through the full pipeline in this browser; stop and resume any time, then download one CSV.',
+    nodes: [{ id: 'batch', type: 'batch.folder', position: { x: 0, y: 0 } }],
+    edges: [],
+  },
   serverFull,
   studySheet,
 ];

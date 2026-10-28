@@ -9,6 +9,7 @@ import { DEFAULT_VIEW, useStudio, type StudioNodeData } from './context';
 import { int, mb, pct, statusText } from './format';
 import { countLabels, isLayer, LAYER_LABEL, layerCanvas, type LayerKind } from './render';
 import { AnalysisView } from './AnalysisPanel';
+import { BatchBody, batchStatus, useBatch } from './BatchPanel';
 import { FeaturesView } from './FeaturesPanel';
 import { ANALYSIS_STEPS, SheetProgress, SheetSummaryView } from './SheetPanel';
 import { DevicePick, FilePick, StudyPhotosBody } from './StudyNodes';
@@ -220,6 +221,8 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
           </>
         );
       }
+      case 'batch.folder':
+        return <BatchBody />;
       case 'server.analyze': {
         const v = out?.kind === 'analysis' ? out : undefined;
         return (
@@ -310,14 +313,29 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
         )}
         {body}
       </div>
-      <footer className="node-foot">
-        <span className="sdot" />
-        <span className="stext" title={statusText(s)}>{statusText(s)}</span>
-        {s.status === 'running' && s.fraction !== undefined && (
-          <span className="sbar"><span style={{ width: pct(s.fraction, 0) }} /></span>
-        )}
-      </footer>
+      {data.type === 'batch.folder' ? (
+        <BatchFoot />
+      ) : (
+        <footer className="node-foot">
+          <span className="sdot" />
+          <span className="stext" title={statusText(s)}>{statusText(s)}</span>
+          {s.status === 'running' && s.fraction !== undefined && (
+            <span className="sbar"><span style={{ width: pct(s.fraction, 0) }} /></span>
+          )}
+        </footer>
+      )}
     </div>
+  );
+}
+
+/** The batch node's status comes from the batch run, not from the canvas Run. */
+function BatchFoot() {
+  const b = useBatch();
+  return (
+    <footer className={`node-foot ${b.running ? 'b-run' : ''}`}>
+      <span className="sdot" />
+      <span className="stext">{batchStatus(b)}</span>
+    </footer>
   );
 }
 

@@ -7,7 +7,7 @@ import { readSource } from './sources';
 import type { M0Value, NodeValue, PortType } from './values';
 import { serverAnalyze, studyPhotos, studySheet } from './study';
 
-export type NodeGroup = 'input' | 'm0' | 'm1' | 'm2' | 'm3' | 'view' | 'server' | 'study';
+export type NodeGroup = 'input' | 'm0' | 'm1' | 'm2' | 'm3' | 'view' | 'batch' | 'server' | 'study';
 
 export interface PortSpec {
   id: string;
@@ -45,6 +45,7 @@ export const GROUP_LABEL: Record<NodeGroup, string> = {
   m2: 'AutoMorph M2',
   m3: 'AutoMorph M3',
   view: 'View',
+  batch: 'Batch',
   server: 'Server · full model',
   study: 'Study sheet',
 };
@@ -173,6 +174,18 @@ const specs: NodeSpec[] = [
         for (const k of Object.keys(result.features)) if (!/^(Disc|Cup|CDR)_/.test(k)) result.features[k] = null;
       }
       return { features: { kind: 'features', result, base, gradable, forced } };
+    },
+  },
+  {
+    // runs from its own Start button (src/engine/batch.ts), not from Run: the canvas Run leaves it alone
+    type: 'batch.folder',
+    title: 'Folder · batch',
+    subtitle: `Up to 1000 photos through M0–M3, one at a time; stop and resume any time`,
+    group: 'batch',
+    inputs: [],
+    outputs: [],
+    async run() {
+      return {};
     },
   },
   {
