@@ -90,7 +90,11 @@ def run(settings: Settings, write_reference: bool = False) -> int:
         device = devices.resolve(settings.device)
         print(f"running AutoMorph v2 on {len(photos)} sample photos ({device}) …", flush=True)
         t = time.time()
-        automorph.run(data_root, device)
+        try:
+            automorph.run(data_root, device)
+        except RuntimeError as e:
+            print(f"SELFTEST FAILED: {e}\n{automorph.failure_detail(data_root)}")
+            return 1
         print(f"finished in {time.time() - t:.0f} s")
         got = _results(data_root)
         if write_reference:

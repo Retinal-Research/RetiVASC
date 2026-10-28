@@ -13,14 +13,23 @@ import threading
 
 from . import automorph
 
+# a device counts only if it really runs a small convolution: a GPU can be listed yet unusable
+# (seen: virtual Macs report an Apple GPU that cannot allocate any memory)
 PROBE = r"""
 import json, torch
+def works(dev):
+    try:
+        x = torch.nn.functional.conv2d(torch.ones(1, 3, 32, 32, device=dev), torch.ones(4, 3, 3, 3, device=dev))
+        return float(x.sum().item()) == 4 * 30 * 30 * 27
+    except Exception:
+        return False
 out = []
 for i in range(torch.cuda.device_count()):
-    free, total = torch.cuda.mem_get_info(i)
-    out.append({"id": f"cuda:{i}", "name": torch.cuda.get_device_name(i),
-                "memory_gb": round(total / 2**30, 1), "free_gb": round(free / 2**30, 1)})
-if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+    if works(f"cuda:{i}"):
+        free, total = torch.cuda.mem_get_info(i)
+        out.append({"id": f"cuda:{i}", "name": torch.cuda.get_device_name(i),
+                    "memory_gb": round(total / 2**30, 1), "free_gb": round(free / 2**30, 1)})
+if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available() and works("mps"):
     out.append({"id": "mps", "name": "Apple GPU (Metal)"})
 print(json.dumps(out))
 """
