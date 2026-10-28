@@ -3,6 +3,7 @@
 
 import { engine } from '../runtime/engine';
 import type { ImageHandle, LabelOutput, M0Output, M3Output, ModelKey, Progress, QualityOutput, VesselOutput } from '../runtime/protocol';
+import type { BatchItem } from './executor';
 import { readSource } from './sources';
 import type { M0Value, NodeValue, PortType } from './values';
 import { serverAnalyze, studyPhotos, studySheet } from './study';
@@ -24,6 +25,8 @@ export interface RunContext {
   inputs: Record<string, NodeValue | undefined>;
   params: Record<string, unknown>;
   progress: (p: Progress) => void;
+  /** in a folder run: the photo this pass is for */
+  batch?: BatchItem;
 }
 
 export interface NodeSpec {
@@ -70,6 +73,22 @@ const specs: NodeSpec[] = [
       const { name, bytes } = await readSource(String(ctx.params.source ?? DEFAULT_SOURCE));
       const h = await engine.call<ImageHandle>({ op: 'decode', bytes, name }, ctx.progress, [bytes]);
       return { image: { kind: 'fundus', name, source: String(ctx.params.source ?? DEFAULT_SOURCE), ...h } };
+    },
+  },
+  {
+    // the steps connected after it run once per photo (src/engine/executor.ts)
+    type: 'input.folder',
+    title: 'Photo folder',
+    subtitle: 'Up to 1000 photos; the steps after it run on each one',
+    group: 'input',
+    inputs: [],
+    outputs: [{ id: 'image', label: 'photo', type: 'fundus' }],
+    async run(ctx) {
+      if (!ctx.batch) throw new Error('choose a photo folder');
+      const { file, path } = ctx.batch.photo;
+      const bytes = await file.arrayBuffer();
+      const h = await engine.call<ImageHandle>({ op: 'decode', bytes, name: file.name }, ctx.progress, [bytes]);
+      return { image: { kind: 'fundus', name: path, source: `folder:${path}`, ...h } };
     },
   },
   {

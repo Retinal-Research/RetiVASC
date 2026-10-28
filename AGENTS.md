@@ -45,6 +45,15 @@ To serve a static build instead: `npm run build` writes `webui/dist`; `npm run p
 - send `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`, which multi-threaded CPU fallback needs;
 - serve `.mjs` as `text/javascript` and `.wasm` as `application/wasm`.
 
+### Static site on GitHub Pages
+
+The browser version needs no server at all: the page is static files, and every step runs on the visitor's computer.
+- Pages limits a site to about 1 GB, so the models are hosted elsewhere, with one folder per model (`quality/`, `vessel/`, `artery_vein/`, `disc_cup/`). Build with `VITE_MODELS_URL` set to the folder that holds them, e.g. a Hugging Face model repository at a version tag: `https://huggingface.co/<owner>/<repo>/resolve/v0.1.0/`. The host must allow cross-origin requests, which Hugging Face does. The public site uses [hwang714/retivasc-automorph](https://huggingface.co/hwang714/retivasc-automorph); further pipelines get a model repository each, since their licences differ. Without the variable the page loads `models/` next to itself, as before.
+- Pages cannot send the isolation headers. `webui/public/coi-serviceworker.js` adds them in the browser (the page reloads once on the first visit); where the server already sends them it does nothing.
+- `.github/workflows/pages.yml` builds and deploys on every push to `main`, once the repository variable `RETIVASC_MODELS_URL` is set and Pages uses "GitHub Actions" as its source. Changes are tested on `beta` first.
+- Offline sites (a hospital intranet, a mobile screening unit) build without `VITE_MODELS_URL`, so the models ship with the page and nothing is downloaded at run time; the server (B) does the same.
+- Without a RetiVASC server the server steps are hidden, and the workflow starts by itself, as in A.
+
 ## B. Server (about 3 minutes plus downloads)
 
 ### Windows
@@ -174,6 +183,7 @@ Machine-specific settings live in `retivasc.local.json` at the repository root. 
 - **`webui/`** (React, TypeScript, Vite, onnxruntime-web).
   - Node types are in `src/engine/specs.ts` and ready-made workflows in `src/engine/workflows.ts`.
   - All inference and pixel work happens in `src/runtime/engine.worker.ts`.
+  - The *Photo folder* input node (`src/engine/folder.ts`) takes up to 1000 photos. The executor then runs every step downstream of it once per photo, the whole downstream graph for one photo before the next, so memory holds one photo at a time. Each finished photo's grades and features are stored in IndexedDB; choosing the same folder again and pressing Run resumes. The engine keeps up to 2 GB of model weights loaded, which is every ensemble member, so models load once per folder.
   - Ports of AutoMorph's pre- and post-processing are in `src/automorph/`; the 72 measurements are in `src/automorph/m3/`.
   - Models are listed with SHA-256 in `public/models/manifest.json`.
   - Server steps call `/api/*`, through `src/server/api.ts`.
@@ -183,6 +193,7 @@ Machine-specific settings live in `retivasc.local.json` at the repository root. 
   - `automorph.py`: stages photos, runs `python -m automorph_v2 run <data_root>` as a subprocess and reads its CSVs.
   - `accounts.py`: bcrypt accounts and HMAC session tokens.
   - `selftest.py`: the acceptance test.
+  - `monitor.py`: CPU, memory and GPU load for the status bar (psutil; `ioreg` on macOS, `nvidia-smi` on NVIDIA).
 - **`automorph_v2/`** is run unchanged, through its command line. Do not edit it to fix RetiVASC behaviour.
 - **Optional study-sheet module.** The server can fill and audit a study's Excel results sheet when a separate, study-specific `retivasc_sheet` package is installed next to it. That package is not part of this repository. Without it, `/api/server` reports `"features": {"sheet": false}`, `/api/jobs/sheet` returns 404, and the web UI hides those steps.
 
@@ -194,6 +205,7 @@ API summary:
 | POST | `/api/logout` | Ends the session |
 | GET | `/api/me` | The signed-in user |
 | GET | `/api/server` | Server status |
+| GET | `/api/stats` | The last minute of CPU, memory and GPU load, and the latest analysis time, for the status bar |
 | GET | `/api/jobs` | The caller's jobs |
 | POST | `/api/jobs/analyze` | Multipart upload of `files[]` (photos) |
 | GET | `/api/jobs/{id}` | Status and result of one job |

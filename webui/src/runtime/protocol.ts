@@ -69,7 +69,7 @@ export interface Progress {
 }
 
 export type EngineOp =
-  | { op: 'init'; base: string }
+  | { op: 'init'; base: string; models?: string }
   | { op: 'decode'; bytes: ArrayBuffer; name: string }
   | { op: 'm0'; imageId: string }
   | { op: 'quality' | 'vessel' | 'artery_vein' | 'disc_cup'; imageId: string; quick?: boolean }

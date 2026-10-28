@@ -1,0 +1,60 @@
+# The browser version as a static site on GitHub Pages: everything runs on the visitor's computer.
+# Only main is published: changes are tested on beta (the lab test machine), then merged into main.
+# Pages limits a site to about 1 GB and 100 GB of traffic a month, so the 0.85 GB of models are not
+# part of the site; the page downloads them from RETIVASC_MODELS_URL (a repository variable, e.g. a
+# Hugging Face model repository at a version tag, https://huggingface.co/<owner>/<repo>/resolve/<tag>/), which must
+# allow cross-origin requests. Without that variable the job is skipped.
+name: pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: vars.RETIVASC_MODELS_URL != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: webui/package-lock.json
+      - name: Build
+        working-directory: webui
+        env:
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+          VITE_MODELS_URL: ${{ vars.RETIVASC_MODELS_URL }}
+        run: |
+          npm ci
+          npm run check
+          npx vite build
+          rm -f dist/models/*.onnx   # never part of the site, even if present
+      - name: Check that the models are reachable from a browser
+        run: |
+          url="${{ vars.RETIVASC_MODELS_URL }}"; url="${url%/}/disc_cup/disc_cup.onnx"
+          curl -sfIL -H 'Origin: https://example.github.io' "$url" | grep -i '^access-control-allow-origin' \
+            || { echo "::error::$url is missing or does not allow cross-origin requests"; exit 1; }
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: webui/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

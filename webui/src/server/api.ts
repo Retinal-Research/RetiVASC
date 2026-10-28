@@ -6,6 +6,10 @@ export interface Account { name: string; admin: boolean; mode?: 'accounts' | 'op
 export interface ServerInfo { version: string; mode?: 'accounts' | 'open'; queued: number; running: boolean; allowed_folders: string[]; retention_days: number; device: string; devices?: ServerDevice[]; features?: { sheet: boolean } }
 /** An inference device on the server; GPUs come first, the CPU last. */
 export interface ServerDevice { id: string; name: string; memory_gb?: number; free_gb?: number }
+/** One second of the server machine's load; GPU memory is in bytes and may be unknown. */
+export interface StatGpu { id: string; name: string; util: number; mem_used: number | null; mem_total: number | null }
+export interface StatSample { t: number; cpu: number; mem_used: number; mem_total: number; gpus: StatGpu[] }
+export interface ServerStats { host: string; queued: number; running: boolean; last_run: { seconds: number; photos: number } | null; samples: StatSample[] }
 export interface JobProgress { step: string; fraction: number | null }
 export interface JobView {
   id: string; owner: string; kind: 'analyze' | 'sheet'; title: string; created: string;
@@ -48,6 +52,7 @@ export const api = {
   login: (name: string, password: string) => call<Account>('/login', json({ name, password })),
   logout: () => call<{ ok: boolean }>('/logout', { method: 'POST' }),
   server: () => call<ServerInfo>('/server'),
+  stats: () => call<ServerStats>('/stats'),
   jobs: () => call<JobView[]>('/jobs'),
   job: (id: string) => call<JobDetail>(`/jobs/${id}`),
   remove: (id: string) => call<{ ok: boolean }>(`/jobs/${id}`, { method: 'DELETE' }),

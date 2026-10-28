@@ -28,6 +28,8 @@ import { DRAG_TYPE, Sidebar } from './ui/Sidebar';
 import { TopBar } from './ui/TopBar';
 import { useAppearance } from './ui/appearance';
 import { Login, useAccount } from './ui/Login';
+import { PerfBar } from './ui/PerfBar';
+import { useFolderRun } from './ui/FolderPanel';
 import { api } from './server/api';
 import { exposeTestHooks } from './testHooks';
 
@@ -97,12 +99,21 @@ export function App() {
   const counter = useRef(1);
   const fitPending = useRef(false);
   const nodesReady = useNodesInitialized();
+  const folderRun = useFolderRun(executor);
+
+  // closing the page stops a folder run; finished photos are kept, but say so
+  useEffect(() => {
+    if (!folderRun?.running) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [folderRun?.running]);
 
   // frame a freshly loaded workflow once React Flow has measured its nodes
   useEffect(() => {
     if (!nodesReady || !fitPending.current) return;
     fitPending.current = false;
-    void flow.fitView({ padding: 0.06, duration: 250 });
+    void flow.fitView({ padding: 0.06, duration: 250, maxZoom: 1 });
   }, [nodesReady, flow]);
 
   const patchNode = useCallback(
@@ -128,7 +139,7 @@ export function App() {
       setLastRun(summary);
       return summary;
     } catch (error) {
-      setLastRun({ ms: 0, errors: 1, ran: 0, blocked: 0 });
+      setLastRun({ ms: 0, errors: 1, ran: 0, blocked: 0, photos: 0 });
       window.alert(error instanceof Error ? error.message : String(error));
     } finally {
       busy.current = false;
@@ -254,6 +265,7 @@ export function App() {
       nodes: nodesRef.current.map((n) => {
         const params = { ...n.data.params };
         if (typeof params.source === 'string' && !params.source.startsWith('sample:')) delete params.source; // files are not saved
+        delete params.folderId;
         return { id: n.id, type: n.data.type, position: n.position, params };
       }),
       edges: edgesRef.current.map((e) => ({ source: e.source, sourceHandle: e.sourceHandle ?? '', target: e.target, targetHandle: e.targetHandle ?? '' })),
@@ -296,11 +308,12 @@ export function App() {
     [executor, engineInfo, samples, running, setParams, setView],
   );
   const selectedNode = nodes.find((n) => n.id === selected);
+  const browserNode = nodes.find((n) => n.data.state.status === 'running' && SPECS[n.data.type]?.group !== 'server');
 
   return (
     <StudioContext.Provider value={studio}>
       <div className="app">
-        <TopBar name={name} engine={engineInfo} engineError={engineError} running={running} lastRun={lastRun} onRun={() => void run()} onSave={save} onOpen={(f) => void open(f)} appearance={appearance} theme={theme} onAppearance={setAppearance} account={account} onSignOut={() => void api.logout().finally(() => setAccount({ mode: 'signin' }))} />
+        <TopBar name={name} engine={engineInfo} engineError={engineError} running={running} lastRun={lastRun} onRun={() => void run()} onStop={() => executor.stop()} onSave={save} onOpen={(f) => void open(f)} appearance={appearance} theme={theme} onAppearance={setAppearance} account={account} onSignOut={() => void api.logout().finally(() => setAccount({ mode: 'signin' }))} />
         <Sidebar current={name} onLoad={(wf) => load(wf)} onAdd={(t) => addNode(t)} server={account.mode === 'ready'} />
         <main className="canvas" onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} onDrop={onDrop}>
           <ReactFlow<StudioNode, Edge>
@@ -324,6 +337,9 @@ export function App() {
           </ReactFlow>
         </main>
         <Inspector node={selectedNode} />
+        {(account.mode === 'ready' || account.mode === 'offline') && (
+          <PerfBar engine={engineInfo} browserStep={browserNode && SPECS[browserNode.data.type]?.title} lastRun={lastRun} server={account.mode === 'ready'} />
+        )}
         {account.mode === 'signin' && <Login onDone={(a) => setAccount({ mode: 'ready', account: a })} />}
       </div>
     </StudioContext.Provider>

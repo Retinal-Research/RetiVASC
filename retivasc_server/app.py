@@ -13,6 +13,7 @@
   GET    /api/jobs/{id}/file/{name} a download from out/
   DELETE /api/jobs/{id}             cancel if queued, then delete
   GET    /api/server                queue length, folders users may analyse in place, inference devices
+  GET    /api/stats                 the last minute of CPU, memory and GPU load and the latest analysis time, for the status bar
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Respon
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, devices
+from . import __version__, devices, monitor
 from .accounts import Accounts
 from .jobs import JobStore
 from .settings import Settings
@@ -140,6 +141,16 @@ def create_app(settings: Settings, runner=None, start_worker: bool = True, webui
         return {"version": __version__, "mode": settings.auth, "queued": len(store.queue), "running": store.current is not None,
                 "allowed_folders": [str(p) for p in settings.allowed_folders], "retention_days": settings.retention_days,
                 "device": settings.device, "devices": devices.cached(), "features": {"sheet": SHEET}}
+
+    @app.get("/api/stats")
+    def stats(name: str = Depends(user)):
+        # how long the latest finished analysis took, to compare with a run in the browser; no names or owners
+        done = [j for j in store.all() if j.kind == "analyze" and j.status == "done" and j.started and j.finished]
+        last = max(done, key=lambda j: j.finished, default=None)
+        last_run = last and {"seconds": (datetime.fromisoformat(last.finished) - datetime.fromisoformat(last.started)).total_seconds(),
+                             "photos": len(last.result.get("photos", []))}
+        return {"host": monitor.HOST, "queued": len(store.queue), "running": store.current is not None,
+                "last_run": last_run or None, "samples": monitor.history()}
 
     # -- jobs
     def view(job) -> dict:

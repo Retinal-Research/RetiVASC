@@ -27,9 +27,13 @@ interface Loaded { session: ort.InferenceSession; backend: Backend; bytes: numbe
 const sessions = new Map<string, Loaded>();
 const loading = new Map<string, Promise<Loaded & { loadMs: number }>>();
 const downloads = new Map<string, Promise<Uint8Array>>();
-const SESSION_BUDGET = 1.0 * 2 ** 30; // bytes of weights held at once (float32 once loaded)
+// bytes of weights held at once (float32 once loaded): every member of all four models (about 1.7 GB),
+// so a batch loads each model once for the whole folder
+const SESSION_BUDGET = 2.0 * 2 ** 30;
 let manifest: Manifest | undefined;
 let base = '/';
+// where the .onnx files are; a static site keeps them elsewhere (GitHub Pages limits a site to 1 GB)
+let modelsUrl = '';
 let backend: Backend = 'wasm';
 let nextImage = 1;
 
@@ -51,7 +55,7 @@ self.onmessage = async (event: MessageEvent<{ id: number } & EngineOp>) => {
 async function handle(req: EngineOp, progress: (p: Progress) => void): Promise<[unknown, Transferable[]]> {
   switch (req.op) {
     case 'init':
-      return [await init(req.base), []];
+      return [await init(req.base, req.models), []];
     case 'decode': {
       progress({ stage: 'decode', message: 'Decoding image' });
       const handle = await decode(req.bytes);
@@ -100,8 +104,9 @@ async function handle(req: EngineOp, progress: (p: Progress) => void): Promise<[
   }
 }
 
-async function init(baseUrl: string): Promise<EngineInfo> {
+async function init(baseUrl: string, models = ''): Promise<EngineInfo> {
   base = baseUrl;
+  modelsUrl = models && !models.endsWith('/') ? `${models}/` : models;
   manifest = (await (await fetch(`${base}models/manifest.json`, { cache: 'no-cache' })).json()) as Manifest;
   const threads = self.crossOriginIsolated ? Math.min(8, navigator.hardwareConcurrency || 4) : 1;
   ort.env.wasm.numThreads = threads;
@@ -178,7 +183,8 @@ function part(key: ModelKey, index: number) {
 
 async function download(key: ModelKey, index: number, progress?: (p: Progress) => void): Promise<Uint8Array> {
   const info = part(key, index);
-  const url = new URL(`${base}${info.file}`, self.location.href).href;
+  // a model host keeps one folder per model (quality/, vessel/, artery_vein/, disc_cup/); models/ here is flat
+  const url = new URL(modelsUrl ? `${modelsUrl}${key}/${info.file.split('/').pop()}` : `${base}${info.file}`, self.location.href).href;
   const cacheKey = `${url}?sha256=${info.sha256.slice(0, 16)}`;
   const cache = 'caches' in self ? await caches.open(CACHE_NAME) : undefined;
   const hit = await cache?.match(cacheKey);

@@ -12,6 +12,8 @@ interface Props {
   running: boolean;
   lastRun?: RunSummary;
   onRun: () => void;
+  /** stop after the step that is running (a folder run keeps the photos it finished) */
+  onStop: () => void;
   onSave: () => void;
   onOpen: (file: File) => void;
   appearance: Appearance;
@@ -31,7 +33,7 @@ function Logo() {
   );
 }
 
-export function TopBar({ name, engine, engineError, running, lastRun, onRun, onSave, onOpen, appearance, theme, onAppearance, account, onSignOut }: Props) {
+export function TopBar({ name, engine, engineError, running, lastRun, onRun, onStop, onSave, onOpen, appearance, theme, onAppearance, account, onSignOut }: Props) {
   let chip = <span className="engine wait"><span className="sdot" />Starting engine…</span>;
   if (engineError) chip = <span className="engine bad" title={engineError}><span className="sdot" />Engine failed to start</span>;
   else if (engine?.backend === 'webgpu') chip = <span className="engine ok" title={engine.adapter}><span className="sdot" />WebGPU · {engine.adapter}</span>;
@@ -52,6 +54,7 @@ export function TopBar({ name, engine, engineError, running, lastRun, onRun, onS
           {running ? <span className="spinner" /> : <span className="play" />}
           {running ? 'Running…' : 'Run'}
         </button>
+        {running && <button className="btn" onClick={onStop} title="Stop after the step that is running">Stop</button>}
         {lastRun && !running && (
           <span className={`lastrun ${lastRun.errors ? 'bad' : lastRun.blocked ? 'warn' : ''}`}>
             {lastRun.errors
