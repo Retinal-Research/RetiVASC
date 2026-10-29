@@ -120,6 +120,15 @@ Then open http://localhost:8080, sign in, and run *Full analysis on the server* 
 - `open` (public beta): no sign-in; every browser gets its own private guest session, limited to 3 waiting jobs.
 - Switch with `python -m retivasc_server mode open` or `mode accounts`, then restart. Accounts are kept in both modes.
 
+### The AI report through the lab's API
+
+The server can write AI reports through the lab's language-model API for every page, the public site included, without the key leaving the machine (`retivasc_server/report.py`, `/api/report`).
+- Set it in `retivasc.local.json` under `report` (see `retivasc.local.example.json`): `enabled`, `provider`, `url`, `model`, the sites allowed to call it (`origins`), and the limits: `per_window` requests per IP in `window_seconds`, `per_ip_per_day`, `per_day` for everyone. The key comes from the environment variable `key_env` names (default `RETIVASC_REPORT_KEY`) or from `key_file`; never put it in the repository or a chat.
+- The browser sends only its fact sheet. The server builds the prompt itself from `webui/src/engine/prompts.json`, the same as the browser's (`webui/tests/prompt.ts` and `retivasc_server/tests/test_report.py` hold both to `webui/tests/prompt_fixture.json`), so the endpoint cannot be used for anything but RetiVASC reports. Nothing is stored.
+- For the public site, expose only `/api/report` of this server through the Cloudflare tunnel (a public hostname in the Cloudflare dashboard with path `^/api/report`), and build the site with the repository variable `RETIVASC_REPORT_URL` set to `https://<that hostname>/api/report`. Behind the tunnel, limits count the visitor's address (`CF-Connecting-IP`).
+- The node's writer setting: `auto` uses the lab's API when the page can reach it and the model on the visitor's computer otherwise; `online` or `local` force one.
+- `provider: "fake"` writes a canned report, for tests only. The ASU provider is a placeholder until its interface is known.
+
 ### Opening the server to other computers
 
 By default the server listens on `127.0.0.1` only. Set `"host": "0.0.0.0"` in `retivasc.local.json` and allow the port in the firewall. **This exposes the service to the network: do it only when the owner asks.** For HTTPS, set `ssl_certfile` and `ssl_keyfile`, or put a reverse proxy in front.
