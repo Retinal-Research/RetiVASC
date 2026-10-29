@@ -394,7 +394,8 @@ const specs: NodeSpec[] = [
     group: 'ai',
     llm: true,
     cohort: true,
-    inputs: [{ id: 'results', label: 'results of any steps', type: 'any', multi: true }],
+    // its context: any steps, as many as wanted; everything they give is passed to the model
+    inputs: [{ id: 'context', label: 'context: any steps', type: 'any', multi: true }],
     outputs: [{ id: 'report', label: 'report', type: 'report' }],
     defaults: { prompt: '', effort: 'medium' },
     run: aiReport,

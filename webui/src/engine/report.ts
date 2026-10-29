@@ -5,7 +5,7 @@
 
 import { llm } from '../llm/llm';
 import type { ChatResult } from '../llm/protocol';
-import { folderFacts, photoFacts, type Cohort, type FactSheet, type Language, type Source } from './facts';
+import { folderFacts, photoFacts, tableGroups, type Cohort, type FactSheet, type Language, type Source } from './facts';
 import { hash } from './folder';
 import { questionPrompt, reportPrompt, SYSTEM, type Need } from './prompt';
 
@@ -179,9 +179,15 @@ export const clean = (text: string) => text.replace(/<think>[\s\S]*?<\/think>\s*
 
 export async function aiReport(ctx: RunContext): Promise<Record<string, NodeValue>> {
   const language: Language = 'en';  // the public demonstration is in English
-  const request = String(ctx.params.prompt ?? '').trim().slice(0, 1500);
+  const request = String(ctx.params.prompt ?? '').trim();
   const effort: Effort = EFFORTS.includes(ctx.params.effort as Effort) ? (ctx.params.effort as Effort) : 'medium';
-  const sheet = ctx.cohort ? folderFacts(ctx.cohort as Cohort, language) : photoFacts((ctx.many?.results ?? []) as Source[], language);
+  const sheet = ctx.cohort ? folderFacts(ctx.cohort as Cohort, language) : photoFacts((ctx.many?.context ?? []) as Source[], language);
+  if (ctx.cohort) {
+    // a Results table after the folder is a step of its own: its rows come in as its value, not as records
+    const terms = new Set(sheet.terms);
+    for (const { value: v } of ctx.many?.context ?? []) if (v.kind === 'table') for (const t of v.tables) sheet.groups.push(...tableGroups(t, language, terms));
+    sheet.terms = [...terms];
+  }
   // any steps may be connected: those without numbers (an image, a view) just add nothing to the sheet.
   // The steps after it say what they need: a results table gets a table as well as the report.
   const needs: Need[] = ctx.downstream?.includes('view.table') ? ['table'] : [];

@@ -63,6 +63,21 @@ ok(rep2?.table && !rep2.tableError && !/```/.test(rep2.text), `the report wrote 
 ok(rep2 && rep2.unchecked.length === 0, `its numbers are all in the results (${rep2?.unchecked.join(', ') || 'none missing'})`);
 ok(table2?.tables?.length === 2, `the table step shows both tables (${table2?.tables?.map((x) => x.title).join('; ')})`);
 if (rep2?.table) console.log(rep2.table.rows.slice(0, 6).map((x) => '    | ' + x.join(' | ')).join('\n'));
+// the other way round: the AI report whose only context is the Results table reads all of its numbers
+await page.evaluate(() => {
+  const wf = window.__studio.workflow('retivasc');
+  wf.edges = wf.edges.filter((e) => e.target !== 'report');
+  wf.edges.push({ source: 'table', sourceHandle: 'table', target: 'report', targetHandle: 'context' });
+  window.__studio.loadFile(wf);
+});
+await page.waitForTimeout(500);
+await page.evaluate(() => window.__studio.run());
+await page.waitForFunction(() => Object.values(window.__studio.states()).every((x) => x.status !== 'running'), null, { timeout: 900_000, polling: 500 });
+const rep3 = await r('report');
+const rows3 = (rep3?.facts ?? []).flatMap((g) => g.rows);
+ok(rows3.length >= 80 && rows3.some(([k]) => /Fractal dimension/.test(k)) && rows3.some(([k]) => /branching angle, arteries/i.test(k)) && /\d/.test(rep3?.text ?? ''),
+  `the report reads the whole Results table (${rows3.length} values; numbers not in them: ${rep3?.unchecked.join(', ') || 'none'})`);
+if (rep3) console.log(rep3.text.split('\n').slice(0, 10).map((x) => '    | ' + x).join('\n'));
 ok(problems.length === 0, `no page errors${problems.length ? `: ${problems.join(' | ')}` : ''}`);
 await page.screenshot({ path: 'tests/retivasc.png' });
 await browser.close();

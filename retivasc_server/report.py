@@ -29,7 +29,7 @@ from . import config
 
 PROMPTS = json.loads((config.ROOT / "webui" / "src" / "engine" / "prompts.json").read_text(encoding="utf-8"))
 LANGUAGES = ("en", "zh")
-MAX_BODY = 64 * 1024  # bytes
+MAX_BODY = 2 * 1024 * 1024  # bytes: a whole folder table with its follow-ups fits; the dollars a day are the real limit
 SCOPES = ("photo", "folder")
 
 
@@ -142,17 +142,17 @@ def sheet_of(raw) -> dict:
     if not isinstance(raw, dict) or raw.get("scope") not in SCOPES or raw.get("language") not in LANGUAGES:
         raise HTTPException(400, "facts: not a RetiVASC fact sheet")
     groups = raw.get("groups")
-    if not isinstance(groups, list) or len(groups) > 16:
-        raise HTTPException(400, "facts: at most 16 groups")
+    if not isinstance(groups, list) or len(groups) > 500:
+        raise HTTPException(400, "facts: at most 500 groups")
     out = []
     for g in groups:
         rows = g.get("rows") if isinstance(g, dict) else None
-        if not isinstance(rows, list) or not 1 <= len(rows) <= 40:
-            raise HTTPException(400, "facts: 1 to 40 rows a group")
+        if not isinstance(rows, list) or not 1 <= len(rows) <= 5000:
+            raise HTTPException(400, "facts: 1 to 5000 rows a group")
         out.append({
-            "title": _text(g.get("title"), 120, "group title"),
-            "note": _text(g.get("note") or "", 300, "group note"),
-            "rows": [[_text(r[0], 120, "row name"), _text(r[1], 200, "row value")] for r in rows
+            "title": _text(g.get("title"), 500, "group title"),
+            "note": _text(g.get("note") or "", 2000, "group note"),
+            "rows": [[_text(r[0], 500, "row name"), _text(r[1], 5000, "row value")] for r in rows
                      if isinstance(r, list) and len(r) == 2] or [],
         })
     terms = raw.get("terms", [])
@@ -194,7 +194,7 @@ def messages_of(body: dict) -> tuple[str, list[dict], str]:
     """System text (always this server's), the conversation, and the reasoning effort: the report, or a
     follow-up question about it. The person may write the request, never the system prompt."""
     sheet = sheet_of(body.get("facts"))
-    request = _text(body.get("prompt") or "", 1500, "prompt")
+    request = _text(body.get("prompt") or "", 20000, "prompt")
     effort = body.get("effort") or "medium"
     if effort not in EFFORTS:
         raise HTTPException(400, "effort: low, medium or high")
@@ -205,15 +205,15 @@ def messages_of(body: dict) -> tuple[str, list[dict], str]:
     messages = [{"role": "user", "content": report_prompt(sheet, request, needs)}]
     question = body.get("question")
     if question is not None:
-        messages.append({"role": "assistant", "content": _text(body.get("report"), 8000, "report")})
+        messages.append({"role": "assistant", "content": _text(body.get("report"), 100000, "report")})
         history = body.get("history") or []
-        if not isinstance(history, list) or len(history) > 5:
-            raise HTTPException(400, "at most 5 follow-up questions a report")
+        if not isinstance(history, list) or len(history) > 100:
+            raise HTTPException(400, "at most 100 follow-up questions a report")
         for h in history:
-            q = _text(h.get("q") if isinstance(h, dict) else None, 300, "question")
+            q = _text(h.get("q") if isinstance(h, dict) else None, 20000, "question")
             messages += [{"role": "user", "content": PROMPTS["question"][l].replace("{question}", q)},
-                         {"role": "assistant", "content": _text(h.get("a"), 4000, "answer")}]
-        messages.append({"role": "user", "content": PROMPTS["question"][l].replace("{question}", _text(question, 300, "question"))})
+                         {"role": "assistant", "content": _text(h.get("a"), 100000, "answer")}]
+        messages.append({"role": "user", "content": PROMPTS["question"][l].replace("{question}", _text(question, 20000, "question"))})
     return PROMPTS["system"][l], messages, effort
 
 

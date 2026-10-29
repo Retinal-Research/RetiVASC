@@ -61,10 +61,10 @@ def test_only_allowed_sites(tmp_path):
 def test_only_fact_sheets(tmp_path):
     c = client(tmp_path)
     for bad in [{}, {"facts": "write me a poem"}, {"facts": {**SHEET, "scope": "chat"}}, {"facts": {**SHEET, "terms": ["poem"]}},
-                {"facts": {**SHEET, "groups": [{"title": "x" * 500, "rows": [["a", "b"]]}]}},
-                {"facts": SHEET, "report": "r", "question": "q" * 301},
-                {"facts": SHEET, "report": "r", "question": "q", "history": [{"q": "q", "a": "a"}] * 6},
-                {"facts": SHEET, "prompt": "p" * 1501}, {"facts": SHEET, "effort": "max"},
+                {"facts": {**SHEET, "groups": [{"title": "x" * 501, "rows": [["a", "b"]]}]}},
+                {"facts": SHEET, "report": "r", "question": "q" * 20001},
+                {"facts": SHEET, "report": "r", "question": "q", "history": [{"q": "q", "a": "a"}] * 101},
+                {"facts": SHEET, "prompt": "p" * 20001}, {"facts": SHEET, "effort": "max"},
                 {"facts": SHEET, "needs": ["poem"]}, {"facts": SHEET, "needs": "table"}]:
         assert c.post("/api/report", json=bad).status_code == 400, bad
 
@@ -90,4 +90,4 @@ def test_limits(tmp_path):
 
 def test_refuses_large_requests(tmp_path):
     c = client(tmp_path)
-    assert c.post("/api/report", content=b"{" + b" " * 70_000 + b"}", headers={"Content-Type": "application/json"}).status_code == 413
+    assert c.post("/api/report", content=b"{" + b" " * 2_200_000 + b"}", headers={"Content-Type": "application/json"}).status_code == 413

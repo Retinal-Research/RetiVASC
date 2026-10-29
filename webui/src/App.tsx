@@ -210,6 +210,9 @@ export function App() {
 
   const load = useCallback(
     (wf: WorkflowFile, autorun = false) => {
+      // files saved before the AI report's input was named "context"
+      const ai = new Set(wf.nodes.filter((n) => n.type === 'ai.report').map((n) => n.id));
+      wf = { ...wf, edges: wf.edges.map((e) => (ai.has(e.target) && e.targetHandle === 'results' ? { ...e, targetHandle: 'context' } : e)) };
       const ns = toNodes(wf);
       setNodes(ns);
       setEdges(wf.edges.map((e) => styledEdge(ns, e)));

@@ -316,7 +316,7 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
                 Prompt
                 {data.params.prompt ? <button className="linkbtn" onClick={() => studio.setParams(id, { prompt: '' })}>Default</button> : null}
               </span>
-              <textarea className="select ai-prompt" rows={4} maxLength={1500} value={String(data.params.prompt || DEFAULT_REQUEST[folderScope ? 'folder' : 'photo'])}
+              <textarea className="select ai-prompt" rows={4} value={String(data.params.prompt || DEFAULT_REQUEST[folderScope ? 'folder' : 'photo'])}
                         onChange={(e) => studio.setParams(id, { prompt: e.target.value === DEFAULT_REQUEST[folderScope ? 'folder' : 'photo'] ? '' : e.target.value })}
                         title="What to write. The rules the model follows are fixed on the RetiVASC server." />
             </label>
