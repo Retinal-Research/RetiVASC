@@ -85,6 +85,18 @@ function styledEdge(nodes: StudioNode[], e: { source: string; sourceHandle: stri
   };
 }
 
+/** Edges after the first into a one-source port are its fallbacks (used in order if the ones before fail): dashed. */
+function markFallbacks(nodes: StudioNode[], edges: Edge[]): Edge[] {
+  const seen = new Set<string>();
+  return edges.map((e) => {
+    const key = `${e.target}.${e.targetHandle}`;
+    const multi = !!port(nodes, e.target, e.targetHandle ?? null, 'target')?.multi;
+    const fallback = !multi && seen.has(key);
+    seen.add(key);
+    return fallback ? { ...e, style: { ...e.style, strokeDasharray: '6 5', opacity: 0.55 } } : e;
+  });
+}
+
 function toNodes(wf: WorkflowFile): StudioNode[] {
   return wf.nodes.map((n) => ({
     id: n.id,
@@ -181,20 +193,29 @@ export function App() {
 
   const busy = useRef(false);
   const again = useRef(false);  // a run asked for while another runs (e.g. a workflow opened mid-run)
-  const run = useCallback(async (target?: string): Promise<RunSummary | undefined> => {
+  // quiet: the photo step opening its photo by itself (no Running…, no run summary); a Run pressed meanwhile waits for it
+  const quietRun = useRef<Promise<void> | undefined>(undefined);
+  const run = useCallback(async (target?: string, quiet = false): Promise<RunSummary | undefined> => {
     if (busy.current) {
+      if (quiet) return;
+      if (quietRun.current) {
+        await quietRun.current;
+        return runRef.current(target);
+      }
       again.current = true;
       return;
     }
     busy.current = true;
-    setRunning(true);
+    if (!quiet) setRunning(true);
+    let release = () => {};
+    if (quiet) quietRun.current = new Promise<void>((r) => { release = r; });
     try {
       await engine.boot();
       const graphNodes = nodesRef.current.map((n) => ({ id: n.id, type: n.data.type, params: n.data.params }));
       const graphEdges = edgesRef.current.map((e) => ({ source: e.source, sourceHandle: e.sourceHandle ?? '', target: e.target, targetHandle: e.targetHandle ?? '' }));
       const only = target ? upstream(edgesRef.current, target) : undefined;
       const summary = await executor.run(graphNodes, graphEdges, (id, state) => patchNode(id, { state }), only);
-      setLastRun(summary);
+      if (!quiet) setLastRun(summary);
       void refreshModels();
       return summary;
     } catch (error) {
@@ -202,6 +223,8 @@ export function App() {
       window.alert(error instanceof Error ? error.message : String(error));
     } finally {
       busy.current = false;
+      quietRun.current = undefined;
+      release();
       setRunning(false);
       setStopping(false);
       if (again.current) {
@@ -220,12 +243,12 @@ export function App() {
       wf = { ...wf, edges: wf.edges.map((e) => (ai.has(e.target) && e.targetHandle === 'results' ? { ...e, targetHandle: 'context' } : e)) };
       const ns = toNodes(wf);
       setNodes(ns);
-      setEdges(wf.edges.map((e) => styledEdge(ns, e)));
+      setEdges(markFallbacks(ns, wf.edges.map((e) => styledEdge(ns, e))));
       setName(wf.name);
       setSelected(undefined);
       setLastRun(undefined);
       nodesRef.current = ns;
-      edgesRef.current = wf.edges.map((e) => styledEdge(ns, e));
+      edgesRef.current = markFallbacks(ns, wf.edges.map((e) => styledEdge(ns, e)));
       fitPending.current = true;
       if (autorun) void run();
     },
@@ -465,6 +488,12 @@ export function App() {
 
   // the menu of each step, and the × on a selected connection
   const runStep = useCallback((id: string) => { void run(id); }, [run]);
+  // the photo step runs by itself (it only opens the photo, no model): its preview shows at once
+  useEffect(() => {
+    if (!engineInfo || running || view !== 'studio') return;
+    const waiting = nodes.find((n) => n.data.type === 'input.fundus' && n.data.state.status === 'idle' && n.data.params.source);
+    if (waiting) void run(waiting.id, true);
+  }, [engineInfo, running, view, nodes, run]);
   const removeEdge = useCallback((edgeId: string) => {
     const e = edgesRef.current.find((x) => x.id === edgeId);
     setEdges((es) => es.filter((x) => x.id !== edgeId));

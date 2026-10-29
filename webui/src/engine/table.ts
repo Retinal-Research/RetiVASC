@@ -78,9 +78,8 @@ export async function resultsTable(ctx: RunContext): Promise<Record<string, Node
   for (const { value: v } of ctx.many?.results ?? []) {
     if (v.kind === 'report' && v.table) tables.push(v.table);
   }
-  const shown = tables.filter(hasNumbers);
-  if (!shown.length) throw new Error('connect steps with results: image quality, M3 features, a segmentation, RetiFlow or an AI report');
-  return { table: { kind: 'table', name, tables: shown } satisfies TableValue };
+  // it runs whatever came before it failed: with nothing to show it says so, and the steps after it go on
+  return { table: { kind: 'table', name, tables: tables.filter(hasNumbers) } satisfies TableValue };
 }
 
 // ---------------------------------------------------------------- CSV

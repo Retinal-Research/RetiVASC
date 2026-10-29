@@ -19,7 +19,11 @@ await page.evaluate(() => window.__studio.run());
 await page.waitForFunction(() => Object.values(window.__studio.states()).every((x) => x.status !== 'running'), null, { timeout: 900_000, polling: 500 });
 const s = await page.evaluate(() => window.__studio.states());
 console.log(`ran in ${((Date.now() - t) / 1000).toFixed(0)} s`);
-for (const [id, st] of Object.entries(s)) ok(st.status === 'done', `${id}: ${st.status}${st.message ? ` (${st.message})` : ''}`);
+for (const [id, st] of Object.entries(s)) {
+  // the VascX steps are fallbacks on standby: with everything working they do not run
+  if (id.startsWith('vx_')) ok(st.status === 'idle' && /Standby/.test(st.message ?? ''), `${id}: on standby`);
+  else ok(st.status === 'done', `${id}: ${st.status}${st.message ? ` (${st.message})` : ''}`);
+}
 
 const r = (id) => page.evaluate((x) => window.__studio.result(x), id);
 const enhanced = await r('enhance');

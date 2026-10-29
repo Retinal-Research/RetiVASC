@@ -36,6 +36,7 @@ const size = (t: Table) => `${t.rows.length} row${t.rows.length === 1 ? '' : 's'
 const label = (t: Table, i: number) => (i ? t.title.replace(/[^\w]+/g, '_').slice(0, 30) : '');
 
 export function TableView({ value, workflow, full }: { value: TableValue; workflow: string; full?: boolean }) {
+  if (!value.tables.length) return <div className="empty">No numbers from the steps connected to it: they failed or have none.</div>;
   return (
     <div className="tables">
       {value.tables.map((t, i) => (

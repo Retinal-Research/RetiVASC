@@ -3,6 +3,7 @@
 
 import type { Executor, RunSummary } from './engine/executor';
 import type { WorkflowFile } from './engine/workflows';
+import { SPECS } from './engine/specs';
 import { WORKFLOWS } from './engine/workflows';
 import type { EngineInfo } from './runtime/protocol';
 import type { StudioNode } from './ui/FlowNode';
@@ -32,6 +33,11 @@ export function exposeTestHooks(h: Hooks): void {
     // a library entry as data, to change and load (e.g. with one more connection)
     workflow: (id: string) => structuredClone(WORKFLOWS.find((w) => w.id === id)),
     loadFile: (wf: (typeof WORKFLOWS)[number]) => h.load(wf, false),
+    // make a step type fail, to check the fallbacks (tests only)
+    breakStep: (type: string, message = 'broken for the test') => {
+      const spec = SPECS[type];
+      if (spec) spec.run = async () => { throw new Error(message); };
+    },
     setSource: (id: string, source: string) => h.setParams(id, { source }),
     setParams: (id: string, params: Record<string, unknown>) => h.setParams(id, params),
     run: () => h.run(),

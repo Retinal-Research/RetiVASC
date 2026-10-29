@@ -24,6 +24,8 @@ The page opens on a home page with four pipelines, a QR code and share buttons (
 
 The input of every pipeline is one photograph or a folder of up to 1000 images. A folder runs one photograph at a time, can be stopped and resumed, and gives one CSV; the *Results table* step at the end of each pipeline shows the numbers of the steps connected to it, one row per photograph, and downloads them as a CSV named after the photo or folder, the pipeline and the date. Besides the 72 measurements, the CSV has the same simple measures for every pipeline, so AutoMorph and VascX can be compared: the share of the field of view covered by vessels, arteries, veins and the optic disc, and the position of the fovea; and, from RetiFlow, the number of branching points and their mean angle, for arteries and for veins.
 
+**When a step fails** (a weak graphics card, say), the RetiVASC pipeline goes on. VascX's segmentation stands in for RRWNet, the cropped photo for the enhancement, and the AI report and the results table use whatever finished. The fallback steps run only when needed. The colours of vessels, arteries and veins can be changed in the appearance menu: by default they follow RRWNet's maps, with arteries in magenta and veins in cyan.
+
 **The AI report** is RetiVASC's own skill: connect any steps to its *context* input, as many as you like, and it is given everything they produced (all 72 measurements, every column of a table) and writes what its prompt asks, so a doctor can also ask about specific values. You can edit its prompt and choose how hard it reasons; the rules it follows (a medical research assistant that uses only the given results, never diagnoses, and declines unrelated requests) are fixed on the server.
 - The lab's language model writes it (GPT-6 Luna through ASU CreateAI). The RetiVASC server forwards only the numbers, never a photograph, keeps the API key, and limits each visitor (one request a second, three at once, $1 a day; $10 a day in all).
 - RetiVASC computes every number; the model only writes. Each number in its text is looked up in the results, and words that judge a value (high, normal…) are flagged, because no reference ranges are given. The numbers it was given are shown next to the report.
@@ -137,7 +139,7 @@ TPOT is the lab's model ([Retinal-Research/TPOT-SR](https://github.com/Retinal-R
 
 Parts of the code and documentation were written with the help of Claude, an AI assistant by Anthropic.
 
-The sample photographs in `webui/public/samples/` come from Wikimedia Commons (public domain, CC0 or CC BY-SA 3.0); `samples.json` lists the author, licence and source of each.
+The sample photographs in `webui/public/samples/` come from Wikimedia Commons (public domain, CC0 or CC BY-SA 3.0) and, in `samples/eyepacs/`, from EyePACS (the Kaggle Diabetic Retinopathy Detection data); `samples.json` lists the author, licence and source of each.
 
 If you use RetiVASC, please cite AutoMorph:
 
