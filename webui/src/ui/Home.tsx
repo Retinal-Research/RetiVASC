@@ -1,5 +1,6 @@
-// The home page: what RetiVASC is, the pipelines it offers, and Start. Nothing runs here;
-// Start opens the canvas with the chosen pipeline, and the canvas runs only when asked to.
+// The home page, RetiVASC's front desk: what it is, how it works, the pipelines, Start, and ways to share it
+// (a QR code for talks and posters). Nothing runs here: the analysis engine starts with the canvas. On a
+// phone it explains that RetiVASC runs on a computer and offers to send the link there.
 
 import { useState, type ReactNode } from 'react';
 import type { Sample } from '../engine/sources';
@@ -8,6 +9,7 @@ import type { Appearance, Theme } from './appearance';
 import { AppearanceMenu } from './AppearanceMenu';
 import { Logo } from './Logo';
 import { TourButton } from './Tour';
+import { isPhone, QrCode, QrOverlay, ShareButtons, siteUrl } from './Share';
 
 const LAB = 'Geometry Systems Lab';
 const UNIVERSITY = 'Arizona State University';
@@ -63,6 +65,9 @@ interface Props {
 
 export function Home({ pipelines, missing, samples, onStart, appearance, theme, onAppearance, onTour }: Props) {
   const [chosen, setChosen] = useState<string>();
+  const [qr, setQr] = useState(false);
+  const [phone] = useState(isPhone);
+  const [anyway, setAnyway] = useState(false);
   const ready = pipelines.filter((p) => !missing(p));
   const pick = ready.find((p) => p.id === chosen) ?? ready[0];
   const thumb = (s: Sample) => `${import.meta.env.BASE_URL}home/${s.file.split('/').pop()}`;
@@ -72,6 +77,7 @@ export function Home({ pipelines, missing, samples, onStart, appearance, theme, 
       <header className="home-top">
         <span className="home-mark"><Logo variant="mark" size={22} />RetiVASC</span>
         <div className="home-tools">
+          <button className="btn" onClick={() => setQr(true)} title="Show the QR code of this site, for a talk or a poster">QR code</button>
           <TourButton onClick={onTour} />
           <AppearanceMenu appearance={appearance} theme={theme} onChange={onAppearance} />
         </div>
@@ -110,12 +116,29 @@ export function Home({ pipelines, missing, samples, onStart, appearance, theme, 
             );
           })}
         </div>
-        <div className="start">
-          <button className="btn primary big" disabled={!pick} onClick={() => pick && onStart(pick)}>
-            Start{pick ? ` with ${pick.name}` : ''} <span aria-hidden="true">→</span>
-          </button>
-          <span className="hint">Opens the canvas. Nothing runs until you press Run.</span>
-        </div>
+        {phone && !anyway ? (
+          <div className="start phone">
+            <p><strong>RetiVASC runs on a computer.</strong> It analyses photographs on the computer’s graphics card, in Chrome or Edge. Send yourself the link and open it there:</p>
+            <ShareButtons />
+            <button className="linkbtn" onClick={() => setAnyway(true)}>Open it on this phone anyway</button>
+          </div>
+        ) : (
+          <div className="start">
+            <button className="btn primary big" disabled={!pick} onClick={() => pick && onStart(pick)}>
+              Start{pick ? ` with ${pick.name}` : ''} <span aria-hidden="true">→</span>
+            </button>
+            <span className="hint">Opens the canvas. Nothing runs until you press Run.</span>
+          </div>
+        )}
+      </section>
+
+      <section className="how">
+        <h2>How it works</h2>
+        <ol>
+          <li><strong>Choose a pipeline</strong><span>RetiVASC, AutoMorph or VascX, or build your own from single steps.</span></li>
+          <li><strong>Open a photograph</strong><span>A sample, one of yours, or a folder of up to 1000 images. They stay on your computer.</span></li>
+          <li><strong>Press Run</strong><span>Every step runs in the browser. Click a step to see its result, download the table, or read the AI report.</span></li>
+        </ol>
       </section>
 
       <section className="features">
@@ -125,6 +148,15 @@ export function Home({ pipelines, missing, samples, onStart, appearance, theme, 
             <p>{text}</p>
           </div>
         ))}
+      </section>
+
+      <section className="share">
+        <QrCode text={siteUrl()} size={128} />
+        <div>
+          <h2>Share RetiVASC</h2>
+          <p>Scan the code, or send the link to yourself or a colleague. It opens on any computer with an up-to-date browser; nothing to install.</p>
+          <ShareButtons compact />
+        </div>
       </section>
 
       <footer className="home-foot">
@@ -138,6 +170,7 @@ export function Home({ pipelines, missing, samples, onStart, appearance, theme, 
         <span title={samples.map((s) => `${s.label}: ${s.author}, ${s.license}`).join('\n')}>Sample photographs: Wikimedia Commons (hover for credits)</span>
         <span>For research use. Not a medical device.</span>
       </footer>
+      {qr && <QrOverlay onClose={() => setQr(false)} />}
     </div>
   );
 }
