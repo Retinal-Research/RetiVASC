@@ -29,6 +29,7 @@ from . import config
 
 PROMPTS = json.loads((config.ROOT / "webui" / "src" / "engine" / "prompts.json").read_text(encoding="utf-8"))
 LANGUAGES = ("en", "zh")
+MAX_BODY = 64 * 1024  # bytes
 SCOPES = ("photo", "folder")
 
 
@@ -280,8 +281,11 @@ def install(app: FastAPI, s: ReportSettings) -> None:
         try:
             if not s.enabled or s.provider not in PROVIDERS:
                 raise HTTPException(503, "the report service is not set up on this server")
+            raw = await request.body()
+            if len(raw) > MAX_BODY:  # a real fact sheet with a long conversation stays far below this
+                raise HTTPException(413, "the request is too large")
             try:
-                body = await request.json()
+                body = json.loads(raw)
             except ValueError:
                 raise HTTPException(400, "send the fact sheet as JSON")
             system, messages, _ = messages_of(body)  # checked before it counts against the limits

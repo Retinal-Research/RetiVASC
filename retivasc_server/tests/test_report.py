@@ -69,3 +69,8 @@ def test_limits(tmp_path):
     assert [lim.take("b", t + 100 * i) for i in range(2)] == [None] * 2
     assert "today's limit" in lim.take("c", t + 300)                       # 6 for everyone together
     assert lim.take("c", t + 86_400 * 2) is None                           # a new day
+
+
+def test_refuses_large_requests(tmp_path):
+    c = client(tmp_path)
+    assert c.post("/api/report", content=b"{" + b" " * 70_000 + b"}", headers={"Content-Type": "application/json"}).status_code == 413
