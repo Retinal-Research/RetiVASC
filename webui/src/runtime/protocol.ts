@@ -7,6 +7,11 @@ export type ModelKey = 'quality' | 'vessel' | 'artery_vein' | 'disc_cup'
 /** Each pipeline's models come from their own folder or host (their licences differ). */
 export type ModelSet = 'automorph' | 'vascx' | 'tpot';
 export type Backend = 'webgpu' | 'wasm';
+/** Which device the browser computes on. A web page cannot list the graphics cards; it can only ask
+ *  for the faster one (high-performance) or the power-saving one (usually the integrated GPU). */
+export type GpuChoice = 'high-performance' | 'low-power' | 'cpu';
+export const GPU_CHOICES: GpuChoice[] = ['high-performance', 'low-power', 'cpu'];
+export const isGpuChoice = (v: unknown): v is GpuChoice => GPU_CHOICES.includes(v as GpuChoice);
 
 /** One file of a model: an ensemble member, or the whole model when it is a single file. */
 export interface ModelPart {
@@ -42,6 +47,8 @@ export interface Manifest {
 
 export interface EngineInfo {
   backend: Backend;
+  /** the device asked for; backend and adapter say what the browser gave */
+  gpu: GpuChoice;
   adapter: string;
   threads: number;
   manifest: Manifest;
@@ -87,15 +94,25 @@ export interface VesselOutput { size: number; mask: Uint8Array; timing: Timing }
 export interface LabelOutput { map: LabelMap; timing: Timing }
 export type M3Output = import('../automorph/m3/m3').M3Result;
 
+/** How far each model is: files in this browser's cache, members ready to run. */
+export type ModelStatus = Partial<Record<ModelKey, { parts: number; cached: number; loaded: number }>>;
+
+/** A model a workflow uses: every ensemble member, or the first only (quick). */
+export interface ModelNeed { key: ModelKey; parts: number }
+
 export interface Progress {
-  stage: 'download' | 'compile' | 'preprocess' | 'inference' | 'postprocess' | 'm0' | 'decode' | 'compare' | 'server' | 'measure' | 'enhance';
+  stage: 'download' | 'compile' | 'preprocess' | 'inference' | 'postprocess' | 'm0' | 'decode' | 'compare' | 'server' | 'measure' | 'enhance' | 'llm';
   message: string;
   /** 0..1 when known */
   fraction?: number;
+  /** text written so far (the AI report, as the language model writes it) */
+  text?: string;
 }
 
 export type EngineOp =
-  | { op: 'init'; base: string; models?: string; vascx?: string; tpot?: string }
+  | { op: 'init'; base: string; models?: string; vascx?: string; tpot?: string; gpu?: GpuChoice }
+  | { op: 'status' }
+  | { op: 'preload'; models: ModelNeed[] }
   | { op: 'decode'; bytes: ArrayBuffer; name: string }
   | { op: 'm0'; imageId: string }
   | { op: 'quality' | 'vessel' | 'artery_vein' | 'disc_cup'; imageId: string; quick?: boolean }

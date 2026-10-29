@@ -7,9 +7,12 @@ const URL = process.env.RETIVASC_URL ?? 'http://localhost:8080/';
 let failed = 0;
 const ok = (cond, msg) => { console.log(`${cond ? 'ok  ' : 'FAIL'} ${msg}`); if (!cond) failed++; };
 
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-unsafe-webgpu'] });
+const browser = await chromium.launch({ channel: process.env.BROWSER_CHANNEL ?? 'chrome', headless: true, args: ['--enable-unsafe-webgpu'] });
 const a = await (await browser.newContext({ viewport: { width: 1600, height: 1000 } })).newPage();
 const b = await (await browser.newContext({ viewport: { width: 1600, height: 1000 } })).newPage();
+// the sidebar folds everything but the pipelines; open the sections these checks click into
+await a.addInitScript(() => { for (const k of ['singles', 'server', 'skills']) localStorage.setItem(`retivasc-studio-fold-${k}`, 'true'); });
+await b.addInitScript(() => { for (const k of ['singles', 'server', 'skills']) localStorage.setItem(`retivasc-studio-fold-${k}`, 'true'); });
 await a.goto(URL + '#studio');
 await a.waitForSelector('.wf:has-text("Full analysis on the server")');
 ok(!(await a.isVisible('.login')), 'no sign-in screen');

@@ -75,13 +75,14 @@ const automorph: WorkflowFile = {
   ],
 };
 
-/** Ours: the lab's TPOT enhancement first, then AutoMorph's segmentation and measurements on the enhanced photo. */
+/** Ours: the lab's TPOT enhancement first, then AutoMorph's segmentation and measurements on the enhanced photo,
+ *  written up by the AI report (a language model on this computer). */
 const retivasc: WorkflowFile = {
   format: 'retivasc-studio/1',
   id: 'retivasc',
   section: 'pipeline',
   name: 'RetiVASC',
-  description: "Our pipeline: the lab's TPOT enhancement at full resolution, then vessels, arteries/veins, the optic disc and 72 vascular features on the enhanced photo.",
+  description: "Our pipeline: the lab's TPOT enhancement at full resolution, then vessels, arteries/veins, the optic disc and 72 vascular features on the enhanced photo, and an AI report.",
   nodes: [
     photo(520),
     m0(520),
@@ -93,6 +94,7 @@ const retivasc: WorkflowFile = {
     { id: 'disc', type: 'automorph.disc', position: { x: 1040, y: 760 } },
     { id: 'view', type: 'view.overlay', position: { x: 1410, y: 480 } },
     { id: 'm3', type: 'automorph.m3', position: { x: 1410, y: -20 } },
+    { id: 'report', type: 'ai.report', position: { x: 1790, y: -20 } },
   ],
   edges: [
     link('photo', 'image', 'm0', 'image'),
@@ -110,6 +112,8 @@ const retivasc: WorkflowFile = {
     link('av', 'av', 'm3', 'av'),
     link('disc', 'disc', 'm3', 'disc'),
     link('m1', 'quality', 'm3', 'quality'),
+    link('m1', 'quality', 'report', 'results'),
+    link('m3', 'features', 'report', 'results'),
   ],
 };
 

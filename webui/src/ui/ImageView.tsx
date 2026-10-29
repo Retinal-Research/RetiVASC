@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { Grip } from './Grip';
 import { fit, paint } from './render';
+import { isNum, useRemembered } from '../remember';
+
+const HEIGHT = 360;
 
 /** A rectangle in image fractions (0..1 of width and height). */
 export interface Rect {
@@ -28,6 +32,7 @@ export function ImageView({ base, layers, opacity, empty, focus, boxes = [] }: P
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [view, setView] = useState({ zoom: 1, x: 0, y: 0 });
   const drag = useRef<{ x: number; y: number } | null>(null);
+  const [height, setHeight] = useRemembered('image-height', HEIGHT, isNum);
 
   useEffect(() => {
     const el = wrap.current;
@@ -91,26 +96,31 @@ export function ImageView({ base, layers, opacity, empty, focus, boxes = [] }: P
   }, []);
 
   return (
-    <div
-      ref={wrap}
-      className="imageview"
-      onPointerDown={(e) => {
-        drag.current = { x: e.clientX, y: e.clientY };
-        (e.target as Element).setPointerCapture(e.pointerId);
-      }}
-      onPointerMove={(e) => {
-        if (!drag.current) return;
-        const dx = e.clientX - drag.current.x;
-        const dy = e.clientY - drag.current.y;
-        drag.current = { x: e.clientX, y: e.clientY };
-        setView((v) => (v.zoom === 1 ? v : { ...v, x: v.x + dx, y: v.y + dy }));
-      }}
-      onPointerUp={() => (drag.current = null)}
-      onDoubleClick={() => setView({ zoom: 1, x: 0, y: 0 })}
-    >
-      <canvas ref={canvas} />
-      {!base && <div className="imageview-empty">{empty ?? 'Nothing to show yet — run the workflow'}</div>}
-      {base && <div className="imageview-hint">{view.zoom > 1 ? `${view.zoom.toFixed(1)}× · double-click to reset` : 'Scroll to zoom'}</div>}
-    </div>
+    <>
+      <div
+        ref={wrap}
+        className="imageview"
+        style={{ height }}
+        onPointerDown={(e) => {
+          drag.current = { x: e.clientX, y: e.clientY };
+          (e.target as Element).setPointerCapture(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          if (!drag.current) return;
+          const dx = e.clientX - drag.current.x;
+          const dy = e.clientY - drag.current.y;
+          drag.current = { x: e.clientX, y: e.clientY };
+          setView((v) => (v.zoom === 1 ? v : { ...v, x: v.x + dx, y: v.y + dy }));
+        }}
+        onPointerUp={() => (drag.current = null)}
+        onDoubleClick={() => setView({ zoom: 1, x: 0, y: 0 })}
+      >
+        <canvas ref={canvas} />
+        {!base && <div className="imageview-empty">{empty ?? 'Nothing to show yet — run the workflow'}</div>}
+        {base && <div className="imageview-hint">{view.zoom > 1 ? `${view.zoom.toFixed(1)}× · double-click to reset` : 'Scroll to zoom'}</div>}
+      </div>
+      <Grip axis="y" sign={1} value={height} min={160} max={() => Math.round(window.innerHeight * 0.85)} onChange={setHeight}
+            onReset={() => setHeight(HEIGHT)} label="Drag to change the height of the image" />
+    </>
   );
 }

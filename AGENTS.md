@@ -32,6 +32,7 @@ On Windows, clone to a short path such as `C:\RetiVASC`: AutoMorph's model folde
 ```bash
 python tools/release.py fetch --web     # downloads the browser models into webui/public/models, checks SHA-256
 python tools/release.py fetch --vascx   # optional: the VascX models (0.56 GB) from Eyened/vascx on Hugging Face
+python tools/release.py fetch --llm     # optional: the AI report's language model (1.4 GB) from onnx-community on Hugging Face
 cd webui
 npm ci
 npm run dev                             # http://localhost:5178 (port is fixed: strictPort)
@@ -42,7 +43,8 @@ Verify the deployment:
 - Choose *AutoMorph* and press *Run* on the sample photograph.
 - The top bar names the engine. `WebGPU · <adapter>` is right; `CPU only` means WebGPU is unavailable, and the run is slow but correct.
 - Every node turns green. *M3 · Features* lists 72 values.
-- The *RetiVASC* pipeline needs the TPOT enhancement models, and *VascX* the VascX models; a pipeline whose models are missing is greyed out on the home page.
+- The *RetiVASC* pipeline needs the TPOT enhancement models and the language model of its AI report, and *VascX* the VascX models; a pipeline whose models are missing is greyed out on the home page.
+  - Language model: `python tools/release.py fetch --llm`. Sites without internet (hospital intranets, screening vans) must have it next to the page.
   - VascX: `python tools/release.py fetch --vascx`.
   - TPOT: download `best_SSIM.pth` and `fusion_head_best.pth` from Retinal-Research/TPOT-SR (`weights/`), then run `python tools/export_tpot.py <their folder>` with a Python that has torch, onnx and Pillow. It writes `webui/public/models/tpot/` and reference tensors; `cd webui && npx tsx tests/tpot.ts` then checks the ONNX files against PyTorch.
 
@@ -58,6 +60,7 @@ The browser version needs no server at all: the page is static files, and every 
 - `.github/workflows/pages.yml` builds and deploys on every push to `main`, once the repository variable `RETIVASC_MODELS_URL` is set and Pages uses "GitHub Actions" as its source. Changes are tested on `beta` first.
 - Offline sites (a hospital intranet, a mobile screening unit) build without `VITE_MODELS_URL`, so the models ship with the page and nothing is downloaded at run time; the server (B) does the same.
 - VascX loads from its authors' repository (`VITE_VASCX_URL`, by default Eyened/vascx at a fixed revision), TPOT from `VITE_TPOT_URL` (repository variable `RETIVASC_TPOT_URL`). Without a TPOT host the build leaves TPOT out, and the home page greys out the RetiVASC pipeline.
+- The language model loads from `VITE_LLM_URL` (by default onnx-community/Qwen3-1.7B-ONNX at a fixed revision; repository variable `RETIVASC_LLM_URL`), only when a report is written.
 - Without a RetiVASC server the server steps are hidden; as in A, nothing runs until Run.
 
 ## B. Server (about 3 minutes plus downloads)
@@ -190,7 +193,10 @@ Machine-specific settings live in `retivasc.local.json` at the repository root. 
   - Node types ("skills") are in `src/engine/specs.ts` and the pipeline library in `src/engine/workflows.ts`: RetiVASC (ours: TPOT enhancement, then AutoMorph), AutoMorph, VascX and Custom on the home page (`src/ui/Home.tsx`), then single steps and the server workflows.
   - Three model sets, each with its own manifest and folder (their licences differ): AutoMorph in `public/models/`, VascX in `public/models/vascx/` (CC BY-NC 4.0, fetched from Eyened/vascx, never committed), TPOT in `public/models/tpot/` (made by `tools/export_tpot.py`). `VITE_MODELS_URL`, `VITE_VASCX_URL` and `VITE_TPOT_URL` point the page at hosted copies instead.
   - VascX's preprocessing (field of view, 1024 crop) is `src/vascx/prep.ts`, following retinalysis-fundusprep 1.3.0. Its inference (windows, Gaussian blending, flips) and TPOT's (256 pass, fusion head at 2048 in tiles) are in `src/runtime/engine.worker.ts`.
-  - All inference and pixel work happens in `src/runtime/engine.worker.ts`.
+  - All inference and pixel work happens in `src/runtime/engine.worker.ts`. The top bar's device menu restarts it on another device (`GpuChoice`: the faster or the power-saving graphics card, or the CPU; a web page cannot list the cards), and *Preload* asks it to load the models the canvas uses (`status` and `preload` ops).
+  - The AI report (`ai.report`) uses a second worker, `src/llm/llm.worker.ts`: Qwen3-1.7B (4-bit) in onnxruntime-web, with its own BPE tokenizer (`src/llm/tokenizer.ts`, checked against Hugging Face tokenizers by `tests/tokenizer.ts`). The 1.4 GB model does not fit in WebAssembly memory once parsed (`std::bad_alloc`), so `src/llm/onnxsplit.ts` rewrites its protobuf to give the weights as external data, which go straight to the GPU. A conversation keeps its attention cache, so follow-up questions read only the new words.
+  - What the report is told is computed in `src/engine/facts.ts` (one photo, or statistics over a folder, with comparisons between steps), in English or Chinese; the model only writes (`src/engine/report.ts`), and every number in its text is checked against those facts. Keep the numbers out of the model: a 1.7B model copies numbers well but compares and averages them badly.
+  - A port with `multi: true` takes several connections (`RunContext.many`); a step with `cohort: true` downstream of a Photo folder runs once, after the last photo, on the run's records (`RunContext.cohort`).
   - The *Photo folder* input node (`src/engine/folder.ts`) takes up to 1000 photos. The executor then runs every step downstream of it once per photo, the whole downstream graph for one photo before the next, so memory holds one photo at a time. Each finished photo's grades and features are stored in IndexedDB; choosing the same folder again and pressing Run resumes. The engine keeps up to 2 GB of model weights loaded, which is every ensemble member, so models load once per folder.
   - Ports of AutoMorph's pre- and post-processing are in `src/automorph/`; the 72 measurements are in `src/automorph/m3/`.
   - Models are listed with SHA-256 in `public/models/manifest.json`.
@@ -228,9 +234,12 @@ python -m pytest -q retivasc_server/tests -p no:cacheprovider     # server: sign
 cd webui && npm run check                                          # TypeScript
 ```
 
-With a running instance, these real-browser checks need `playwright-core` and a local Chrome:
-- `node webui/tests/ui.mjs` (dev server on 5178);
+With a running instance, these real-browser checks need `playwright-core` and a local Chrome, or Playwright's own Chromium with `BROWSER_CHANNEL=chromium` (the lab Mac has no Chrome):
+- `node webui/tests/ui.mjs` and `node webui/tests/layout.mjs` (dev server on 5178): the canvas, the folding sidebar, panel sizes, Preload, Stop and the device menu;
+- `node webui/tests/llm.mjs` and `node webui/tests/report.mjs` (dev server on 5178, language model fetched): the language model, and the AI report on a photo, in Chinese, and after a folder;
 - `RETIVASC_URL=http://localhost:8080/ node webui/tests/open.mjs` (open mode).
+
+Without a browser: `cd webui && npx tsx tests/tokenizer.ts` (the tokenizer against Hugging Face's) and `npx tsx tests/tpot.ts`.
 
 The Python self-test (`python -m retivasc_server selftest`) is the reference check for anything touching AutoMorph.
 

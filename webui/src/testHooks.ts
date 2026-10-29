@@ -6,6 +6,7 @@ import type { WorkflowFile } from './engine/workflows';
 import { WORKFLOWS } from './engine/workflows';
 import type { EngineInfo } from './runtime/protocol';
 import type { StudioNode } from './ui/FlowNode';
+import { llm } from './llm/llm';
 
 interface Hooks {
   executor: Executor;
@@ -25,6 +26,7 @@ function base64(bytes: Uint8Array): string {
 export function exposeTestHooks(h: Hooks): void {
   (window as unknown as { __studio: unknown }).__studio = {
     workflows: () => WORKFLOWS.map((w) => w.name),
+    llm,
     // a library entry by position or by id ('retivasc', 'automorph', 'vascx', 'custom')
     load: (which: number | string) => h.load(typeof which === 'string' ? WORKFLOWS.find((w) => w.id === which) ?? WORKFLOWS[0] : WORKFLOWS[which], false),
     setSource: (id: string, source: string) => h.setParams(id, { source }),
@@ -53,6 +55,8 @@ export function exposeTestHooks(h: Hooks): void {
           return { kind: v.kind, x: v.x, y: v.y, size: v.size, timing: v.timing };
         case 'features':
           return { kind: v.kind, features: v.result.features, centredOn: v.result.centredOn, discValid: v.result.discValid, ms: v.result.ms, gradable: v.gradable };
+        case 'report':
+          return { kind: v.kind, text: v.text, unchecked: v.unchecked, judged: v.judged, scope: v.facts.scope, facts: v.facts.groups, qa: v.qa, result: v.result };
       }
     },
   };

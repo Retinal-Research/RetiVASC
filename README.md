@@ -9,18 +9,25 @@ For each photograph, RetiVASC:
 1. finds the circular field of view and crops the photograph to it;
 2. grades image quality as good, usable or reject, so unreliable photographs can be set aside;
 3. outlines the vessels, separates arteries from veins, and finds the optic disc and cup;
-4. reports 72 measurements of the vessel tree. These are vessel density, calibre, tortuosity and fractal dimension, plus the summary calibres CRAE and CRVE and their ratio (AVR), for the whole image and for the standard rings around the optic disc.
+4. reports 72 measurements of the vessel tree. These are vessel density, calibre, tortuosity and fractal dimension, plus the summary calibres CRAE and CRVE and their ratio (AVR), for the whole image and for the standard rings around the optic disc;
+5. writes a report: a language model on your own computer turns the measurements into text, in English or Chinese, and answers questions about them.
 
 The page opens on a home page with four pipelines. Each step of a pipeline is a *skill* on a canvas: the pipelines are ready-made, and the skills can be connected into new ones.
 
 | Pipeline | What it does |
 |---|---|
-| **RetiVASC** (ours) | The lab's [TPOT](https://arxiv.org/abs/2411.01403) enhancement first, at full resolution through TPOT-SR's fusion head, then AutoMorph's segmentation and 72 measurements on the enhanced photograph. The quality grade is the original photograph's. |
+| **RetiVASC** (ours) | The lab's [TPOT](https://arxiv.org/abs/2411.01403) enhancement first, at full resolution through TPOT-SR's fusion head, then AutoMorph's segmentation and 72 measurements on the enhanced photograph, and an AI report. The quality grade is the original photograph's. |
 | **AutoMorph** | [AutoMorph](https://github.com/rmaphoh/AutoMorph), a published and validated pipeline, run with all of its models. |
 | **VascX** | The [VascX models](https://huggingface.co/Eyened/vascx) of the Eyened Reading Center: their own field-of-view crop, then vessels, arteries/veins, the optic disc and the fovea, run as their Python packages run them. |
 | **Custom** | A photograph and the skill library, to build your own. |
 
 The input of every pipeline is one photograph or a folder of up to 1000. A folder runs one photograph at a time, can be stopped and resumed, and gives one CSV. Besides the 72 measurements, the CSV has the same simple measures for every pipeline, so AutoMorph and VascX can be compared: the share of the field of view covered by vessels, arteries, veins and the optic disc, and the position of the fovea.
+
+**The AI report** is a skill like the others: connect any steps to it, and it writes up their results.
+- The language model ([Qwen3-1.7B](https://huggingface.co/Qwen/Qwen3-1.7B), 4-bit, 1.4 GB) runs in the browser on your graphics card. It downloads once, when the first report is written (or with *Preload*), and then works without the internet. Nothing leaves your computer.
+- RetiVASC computes every number; the model only writes. Each number in its text is looked up in the results, and words that judge a value (high, normal…) are flagged, because no reference ranges are given. The numbers it was given are shown next to the report.
+- After a folder, it writes one report on all the photographs: their quality, the spread of each measurement, and, when two steps measure the same thing (AutoMorph and VascX vessels, say), how they differ photo by photo.
+- A small model can still be wrong. The report is for research, not a diagnosis.
 
 RetiVASC can be used in two ways:
 - in the browser, where every model runs on your own computer;
@@ -54,6 +61,7 @@ git clone https://github.com/Retinal-Research/RetiVASC.git
 cd RetiVASC
 python tools/release.py fetch --web        # 0.85 GB, once
 python tools/release.py fetch --vascx      # optional: the VascX models, 0.56 GB, from Hugging Face
+python tools/release.py fetch --llm        # optional: the AI report's language model, 1.4 GB, from Hugging Face
 cd webui && npm ci && npm run dev          # then open http://localhost:5178
 ```
 
@@ -111,6 +119,8 @@ A *Quick* box on each browser step runs only the first model of each ensemble, f
 RetiVASC is released under the GNU General Public License v3.0 (see [LICENSE](LICENSE)). It has to be: the 72 measurements derive from [Retipy](https://github.com/alevalv/retipy), which is GPL-3.0. AutoMorph v2 in `automorph_v2/` keeps its own Apache-2.0 licence and notices (`automorph_v2/LICENSE`, `automorph_v2/THIRD_PARTY_NOTICES.md`). The model weights are redistributed under AutoMorph's original terms.
 
 The VascX models are not part of RetiVASC. `tools/release.py fetch --vascx` and the public site load them from the authors' repository, [Eyened/vascx](https://huggingface.co/Eyened/vascx), at a fixed revision. Their model cards license them under CC BY-NC 4.0, for non-commercial research only. The VascX preprocessing in `webui/src/vascx/prep.ts` follows retinalysis-fundusprep (AGPL-3.0).
+
+The AI report's language model is not part of RetiVASC either: Qwen3-1.7B by the Qwen team (Alibaba), Apache-2.0, as [onnx-community/Qwen3-1.7B-ONNX](https://huggingface.co/onnx-community/Qwen3-1.7B-ONNX) publishes it; `tools/release.py fetch --llm` and the public site load it from there at a fixed revision.
 
 TPOT is the lab's model ([Retinal-Research/TPOT-SR](https://github.com/Retinal-Research/TPOT-SR)). `tools/export_tpot.py` turns its two checkpoints into the ONNX files the browser runs. The TPOT-SR repository does not state a licence yet.
 

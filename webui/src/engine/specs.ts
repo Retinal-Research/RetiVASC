@@ -2,24 +2,29 @@
 // worker; the canvas only wires them together.
 
 import { engine } from '../runtime/engine';
-import type { EnhanceOutput, FoveaOutput, ImageHandle, LabelOutput, M0Output, M3Output, ModelKey, Progress, QualityOutput, VascxPrepOutput, VesselOutput } from '../runtime/protocol';
+import type { EnhanceOutput, FoveaOutput, ImageHandle, LabelOutput, M0Output, M3Output, ModelKey, ModelNeed, Progress, QualityOutput, VascxPrepOutput, VesselOutput } from '../runtime/protocol';
 import type { BatchItem } from './executor';
 import { readSource } from './sources';
 import type { M0Value, NodeValue, PortType } from './values';
 import { serverAnalyze, studyPhotos, studySheet } from './study';
+import type { Cohort } from './facts';
+import { aiReport } from './report';
 
-export type NodeGroup = 'input' | 'm0' | 'enhance' | 'm1' | 'm2' | 'm3' | 'vascx' | 'view' | 'server' | 'study';
+export type NodeGroup = 'input' | 'm0' | 'enhance' | 'm1' | 'm2' | 'm3' | 'vascx' | 'view' | 'ai' | 'server' | 'study';
 
 export interface PortSpec {
   id: string;
   label: string;
-  type: PortType;
+  /** 'any': an input that takes every kind of result */
+  type: PortType | 'any';
   /** other value kinds this input also takes */
   accepts?: PortType[];
   optional?: boolean;
+  /** an input that takes several connections (RunContext.many) */
+  multi?: boolean;
 }
 
-export const acceptsType = (port: PortSpec, type: PortType) => port.type === type || !!port.accepts?.includes(type);
+export const acceptsType = (port: PortSpec, type: PortType) => port.type === 'any' || port.type === type || !!port.accepts?.includes(type);
 
 export interface RunContext {
   inputs: Record<string, NodeValue | undefined>;
@@ -27,6 +32,10 @@ export interface RunContext {
   progress: (p: Progress) => void;
   /** in a folder run: the photo this pass is for */
   batch?: BatchItem;
+  /** every value on an input that takes several connections, by port, in canvas order */
+  many?: Record<string, Array<{ from: string; type: string; value: NodeValue }>>;
+  /** after a folder run, for a step that reports on all of its photos (NodeSpec.cohort) */
+  cohort?: Cohort;
 }
 
 export interface NodeSpec {
@@ -37,6 +46,10 @@ export interface NodeSpec {
   inputs: PortSpec[];
   outputs: PortSpec[];
   model?: ModelKey;
+  /** writes with the language model (src/llm) */
+  llm?: boolean;
+  /** downstream of a Photo folder: runs once, after the last photo, on the results of all of them */
+  cohort?: boolean;
   defaults?: Record<string, unknown>;
   run: (ctx: RunContext) => Promise<Record<string, NodeValue>>;
 }
@@ -50,6 +63,7 @@ export const GROUP_LABEL: Record<NodeGroup, string> = {
   m3: 'AutoMorph M3',
   vascx: 'VascX',
   view: 'View',
+  ai: 'AI',
   server: 'Server · full model',
   study: 'Study sheet',
 };
@@ -286,6 +300,18 @@ const specs: NodeSpec[] = [
     },
   },
   {
+    type: 'ai.report',
+    title: 'AI report',
+    subtitle: 'A language model on this computer writes up the results',
+    group: 'ai',
+    llm: true,
+    cohort: true,
+    inputs: [{ id: 'results', label: 'results of any steps', type: 'any', multi: true }],
+    outputs: [{ id: 'report', label: 'report', type: 'report' }],
+    defaults: { language: 'en', focus: '' },
+    run: aiReport,
+  },
+  {
     type: 'server.analyze',
     title: 'AutoMorph v2 · full analysis',
     subtitle: 'All ensemble members, 72 features, on the server',
@@ -336,3 +362,13 @@ const specs: NodeSpec[] = [
 
 export const SPECS: Record<string, NodeSpec> = Object.fromEntries(specs.map((s) => [s.type, s]));
 export const SPEC_LIST = specs;
+
+/** The engine models a step runs with these settings: "quick" uses the first ensemble member only,
+ *  and the quick enhancement skips the fusion head. */
+export function modelsUsed(type: string, params: Record<string, unknown>): ModelNeed[] {
+  const model = SPECS[type]?.model;
+  if (!model) return [];
+  const quick = !!params.quick && type !== 'automorph.disc';  // the disc step always runs every member
+  if (model === 'tpot') return quick ? [{ key: 'tpot', parts: 1 }] : [{ key: 'tpot', parts: 1 }, { key: 'tpot_fusion', parts: 1 }];
+  return [{ key: model, parts: quick ? 1 : Number.POSITIVE_INFINITY }];
+}

@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "name": "Qwen3-1.7B",
+  "label": "Qwen3-1.7B (Alibaba Qwen), 4-bit weights",
+  "source": "https://huggingface.co/onnx-community/Qwen3-1.7B-ONNX",
+  "revision": "3231b522c6e703b2f9b3cd8ea27426a1289a02f2",
+  "license": "Apache-2.0 (Qwen/Qwen3-1.7B)",
+  "note": "The files are not part of RetiVASC: tools/release.py fetch --llm downloads them from the revision above into this folder, or the page loads them from VITE_LLM_URL.",
+  "files": {
+    "model": {
+      "file": "onnx/model_q4f16.onnx",
+      "bytes": 1426069098,
+      "sha256": "fb85b44defdf43ace50c7a4937127e889b9f8a0483eb87a6c4151a815c5da3b5"
+    },
+    "tokenizer": {
+      "file": "tokenizer.json",
+      "bytes": 9117040,
+      "sha256": "e7a95fce95bf5b0946d0ddb3f9d7caa030b7e850bbe92b0edb26bcf563e9f3d5"
+    }
+  },
+  "config": {
+    "layers": 28,
+    "kvHeads": 8,
+    "headDim": 128,
+    "eos": [
+      151645,
+      151643
+    ],
+    "context": 40960
+  }
+}

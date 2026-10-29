@@ -5,11 +5,13 @@
 // With a Photo folder node the steps downstream of it run once per photo, the whole downstream
 // graph for one photo before the next, so memory holds one photo at a time (each photo's images
 // replace the previous one's). Each finished photo's grades and features are kept, also in
-// IndexedDB, and a stopped run resumes with the photos that are not done yet.
+// IndexedDB, and a stopped run resumes with the photos that are not done yet. A step that reports on
+// the whole folder (the AI report) runs once, after the last photo, on what the run kept of each one.
 
 import { engine } from '../runtime/engine';
+import type { Cohort } from './facts';
 import { getFolder, hash, loadRecords, saveRecord, type FolderPhoto, type PhotoRecord } from './folder';
-import { SPECS } from './specs';
+import { SPECS, type RunContext } from './specs';
 import { measures } from './summary';
 import type { NodeValue } from './values';
 
@@ -32,6 +34,8 @@ export interface NodeState {
   status: NodeStatus;
   message?: string;
   fraction?: number;
+  /** text written so far, while the AI report is being written */
+  text?: string;
   ms?: number;
   cached?: boolean;
   version: number;
@@ -130,6 +134,7 @@ export class Executor {
   private stopRequested = false;
   private folderRun: FolderRun | undefined;
   private listeners = new Set<() => void>();
+  private types = new Map<string, string>();
   running = false;
 
   outputs(id: string): Record<string, NodeValue> | undefined {
@@ -152,6 +157,12 @@ export class Executor {
     if (!this.folderRun) return;
     this.folderRun = { ...this.folderRun, ...patch };
     for (const fn of this.listeners) fn();
+  }
+
+  /** Forget every result: the engine restarted, and the images they point to are gone with it. */
+  reset() {
+    if (this.running) throw new Error('a run is in progress');
+    this.records.clear();
   }
 
   /** Stop after the step that is running now; a folder run keeps the photos it finished. */
@@ -177,9 +188,12 @@ export class Executor {
       }
       if (stale.length) void engine.call({ op: 'release', ids: stale });
 
+      this.types = new Map(nodes.map((n) => [n.id, n.type]));
       const sorted = order(nodes, edges);
       const folderNode = sorted.find((n) => n.type === 'input.folder');
       const perPhoto = folderNode ? downstreamOf(edges, folderNode.id) : new Set<string>();
+      // after a folder: reports on all photos wait for the last one
+      const atEnd = sorted.filter((n) => perPhoto.has(n.id) && SPECS[n.type]?.cohort);
       const finished = new Map<string, string>();
       for (const node of sorted) {
         if (perPhoto.has(node.id)) continue;
@@ -187,8 +201,22 @@ export class Executor {
         this.count(tally, await this.step(node, edges, finished, onState));
       }
       if (folderNode && !this.stopRequested) {
-        const steps = sorted.filter((n) => perPhoto.has(n.id));
-        photos = await this.runFolder(folderNode, steps, edges, finished, onState, tally);
+        const steps = sorted.filter((n) => perPhoto.has(n.id) && !atEnd.includes(n));
+        const done = await this.runFolder(folderNode, steps, edges, finished, onState, tally);
+        photos = done ?? 0;
+        for (const node of atEnd) {
+          if (done === undefined) {
+            onState(node.id, { status: 'blocked', message: 'Choose a photo folder', version: this.version });
+            tally.blocked++;
+          } else if (this.stopRequested) {
+            onState(node.id, { status: 'idle', message: 'Stopped · it runs after the last photo', version: this.version });
+          } else {
+            const run = this.folderRun!;
+            const sources = edges.filter((e) => e.target === node.id).map((e) => ({ id: e.source, type: this.types.get(e.source) ?? '' }));
+            const cohort: Cohort = { total: run.photos.length, records: [...run.records.values()], sources };
+            this.count(tally, await this.step(node, edges, finished, onState, undefined, cohort));
+          }
+        }
       }
     } finally {
       this.running = false;
@@ -205,7 +233,7 @@ export class Executor {
 
   /** One node: wait for its inputs, reuse an unchanged result, or run it. */
   private async step(node: GraphNode, edges: GraphEdge[], finished: Map<string, string>, onState: (id: string, state: NodeState) => void,
-                     batch?: BatchItem): Promise<StepResult> {
+                     batch?: BatchItem, cohort?: Cohort): Promise<StepResult> {
     const spec = SPECS[node.type];
     if (!spec) {
       const message = `unknown node type ${node.type}`;
@@ -213,23 +241,31 @@ export class Executor {
       return { status: 'error', message };
     }
     const inputs: Record<string, NodeValue | undefined> = {};
+    const many: NonNullable<RunContext['many']> = {};
     const parts: string[] = [];
     let waiting: string | undefined;
     for (const port of spec.inputs) {
-      const edge = edges.find((e) => e.target === node.id && e.targetHandle === port.id);
-      if (!edge) {
+      const connected = edges.filter((e) => e.target === node.id && e.targetHandle === port.id);
+      if (!connected.length) {
         if (!port.optional) waiting ??= `Connect “${port.label}”`;
         continue;
       }
-      const upstream = finished.get(edge.source);
-      if (upstream === undefined) { waiting ??= 'An earlier step did not finish'; continue; }
-      inputs[port.id] = this.records.get(edge.source)?.outputs[edge.sourceHandle];
-      parts.push(`${port.id}<${edge.source}.${edge.sourceHandle}#${upstream}`);
+      if (cohort) continue;  // a folder report reads the run's records, not the last photo's values
+      for (const edge of port.multi ? connected : connected.slice(0, 1)) {
+        const upstream = finished.get(edge.source);
+        if (upstream === undefined) { waiting ??= 'An earlier step did not finish'; continue; }
+        const value = this.records.get(edge.source)?.outputs[edge.sourceHandle];
+        if (!port.multi) inputs[port.id] = value;
+        else if (value) (many[port.id] ??= []).push({ from: edge.source, type: this.types.get(edge.source) ?? '', value });
+        parts.push(`${port.id}<${edge.source}.${edge.sourceHandle}#${upstream}`);
+      }
     }
     if (waiting) { onState(node.id, { status: 'blocked', message: waiting, version: this.version }); return { status: 'blocked' }; }
 
-    // in a folder run every photo is new: the key names the photo, so nothing is reused across photos
-    const key = `${node.type}|${stable(node.params)}|${parts.join('|')}${batch ? `|photo:${batch.photo.path}` : ''}`;
+    // in a folder run every photo is new: the key names the photo, so nothing is reused across photos;
+    // a folder report is new whenever the run has another photo done
+    const of = cohort ? `|folder:${hash(cohort.records.map((r) => `${r.path}:${r.status}`).join('|'))}<${cohort.sources.map((c) => c.id).join(',')}` : '';
+    const key = `${node.type}|${stable(node.params)}|${parts.join('|')}${batch ? `|photo:${batch.photo.path}` : ''}${of}`;
     const previous = this.records.get(node.id);
     if (previous && previous.key === key) {
       finished.set(node.id, key);
@@ -242,9 +278,11 @@ export class Executor {
       const t = performance.now();
       const outputs = await spec.run({
         inputs,
+        many,
         params: node.params,
         batch,
-        progress: (p) => onState(node.id, { status: 'running', message: prefix + p.message, fraction: p.fraction, version: this.version }),
+        cohort,
+        progress: (p) => onState(node.id, { status: 'running', message: prefix + p.message, fraction: p.fraction, text: p.text, version: this.version }),
       });
       const ms = performance.now() - t;
       const replaced = imageIds(previous);
@@ -268,13 +306,13 @@ export class Executor {
 
   /** The folder node and everything downstream of it, once per photo that is not done yet. */
   private async runFolder(folderNode: GraphNode, steps: GraphNode[], edges: GraphEdge[], finished: Map<string, string>,
-                          onState: (id: string, state: NodeState) => void, tally: { errors: number; ran: number; blocked: number }): Promise<number> {
+                          onState: (id: string, state: NodeState) => void, tally: { errors: number; ran: number; blocked: number }): Promise<number | undefined> {
     const folder = getFolder(folderNode.params.folderId);
     if (!folder || folder.refused) {
       const message = folder?.refused ?? 'Choose a photo folder';
       for (const n of steps) onState(n.id, { status: 'blocked', message: n.id === folderNode.id ? message : 'An earlier step did not finish', version: this.version });
       tally.blocked += steps.length;
-      return 0;
+      return undefined;
     }
     // the same folder with the same steps and settings resumes; any change starts afresh
     // (the folder node's own params only point at the picked files, which differ every time the page opens)

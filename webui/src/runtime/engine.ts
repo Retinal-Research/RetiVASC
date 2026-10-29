@@ -1,15 +1,23 @@
-import type { EngineInfo, EngineMessage, EngineOp, Progress } from './protocol';
+import { recall, remember } from '../remember';
+import { isGpuChoice, type EngineInfo, type EngineMessage, type EngineOp, type GpuChoice, type Progress } from './protocol';
 
 type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void; onProgress?: (p: Progress) => void };
 
 /** Promise wrapper around the engine worker. */
 export class Engine {
-  private worker = new Worker(new URL('./engine.worker.ts', import.meta.url), { type: 'module' });
+  private worker!: Worker;
   private pending = new Map<number, Pending>();
   private next = 1;
-  readonly ready: Promise<EngineInfo>;
+  ready!: Promise<EngineInfo>;
+  /** the device this browser computes on; remembered for the next visit */
+  gpu: GpuChoice = recall('gpu', 'high-performance', isGpuChoice);
 
   constructor() {
+    this.start();
+  }
+
+  private start() {
+    this.worker = new Worker(new URL('./engine.worker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (event: MessageEvent<EngineMessage>) => {
       const msg = event.data;
       const p = this.pending.get(msg.id);
@@ -27,7 +35,19 @@ export class Engine {
       models: import.meta.env.VITE_MODELS_URL,
       vascx: import.meta.env.VITE_VASCX_URL,
       tpot: import.meta.env.VITE_TPOT_URL,
+      gpu: this.gpu,
     });
+  }
+
+  /** Start again on another device. The images and models the engine held are gone; run again. */
+  restart(gpu: GpuChoice): Promise<EngineInfo> {
+    this.worker.terminate();
+    for (const p of this.pending.values()) p.reject(new Error('the engine was restarted'));
+    this.pending.clear();
+    this.gpu = gpu;
+    remember('gpu', gpu);
+    this.start();
+    return this.ready;
   }
 
   call<T>(op: EngineOp, onProgress?: (p: Progress) => void, transfer: Transferable[] = []): Promise<T> {

@@ -42,9 +42,9 @@ const ICONS: Record<string, ReactNode> = {
 
 const FEATURES: Array<[string, string]> = [
   ['Cross-platform', 'Runs in an up-to-date browser on Windows, macOS and Linux. There is nothing to install.'],
-  ['No compute grid needed', 'Every model runs on the graphics card of your own computer. Photographs never leave it.'],
-  ['Simple interface', 'Connect skills on a canvas and look at the result of every step.'],
-  ['Pipeline library', 'AutoMorph, VascX and our own pipeline are ready to use, and the skills combine into new ones.'],
+  ['No compute grid needed', 'Every model runs on the graphics card of your own computer. Images are stored and processed locally.'],
+  ['Simple interface', 'Connect skills on a canvas and look at the result of every step. Combined with an LLM for report generation and analysis.'],
+  ['Pipeline library', 'RetiVASC, AutoMorph and VascX are ready to use, and the skills combine into new ones.'],
 ];
 
 interface Props {
@@ -77,8 +77,8 @@ export function Home({ pipelines, missing, samples, onStart, appearance, theme, 
         <p className="hero-sub">{SUBTITLE}</p>
         <p className="hero-lab">{LAB} · {UNIVERSITY}</p>
         <p className="hero-what">
-          Measure the retinal blood vessels in colour fundus photographs: image quality, vessels, arteries and veins, the optic disc,
-          and 72 vascular phenotypes. One photograph or a folder of up to 1000.
+          RetiVASC enhances colour fundus photographs and measures their retinal blood vessels: image quality, vessels, arteries and veins,
+          the optic disc and 72 vascular phenotypes. An LLM on your computer turns the measurements into a report. One photograph or a folder of up to 1000.
         </p>
         <div className="strip">
           {samples.slice(0, 6).map((s) => (

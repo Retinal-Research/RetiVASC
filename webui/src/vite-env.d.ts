@@ -7,4 +7,6 @@ interface ImportMetaEnv {
   readonly VITE_VASCX_URL?: string;
   /** Base URL of the TPOT enhancement models; unset: models/tpot/ next to the page */
   readonly VITE_TPOT_URL?: string;
+  /** Base URL of the language model for AI reports (e.g. onnx-community/Qwen3-1.7B-ONNX on Hugging Face at a revision); unset: models/llm/ next to the page */
+  readonly VITE_LLM_URL?: string;
 }
