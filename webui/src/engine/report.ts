@@ -15,7 +15,11 @@ import type { NodeValue } from './values';
 
 export type { Language };
 
-/** Who writes: the lab's API when this page can reach it (auto), only the lab's API, or this computer. */
+export type Effort = 'low' | 'medium' | 'high';
+export const EFFORTS: Effort[] = ['low', 'medium', 'high'];
+
+/** Who writes: the lab's API. The model on this computer ('local') is frozen: nobody wants a 1.4 GB download to
+ *  write a report, so the page never offers it; a workflow file that names it still runs it. */
 export type Writer = 'auto' | 'online' | 'local';
 
 // the report service: on the RetiVASC server next to the page, or where VITE_REPORT_URL says (the public site)
@@ -72,8 +76,10 @@ export interface ReportValue {
   language: Language;
   /** the conversation, for follow-up questions */
   chat: string;
-  /** what the report was asked to pay attention to */
-  focus: string;
+  /** the request the person wrote, or '' for the default one */
+  request: string;
+  /** how hard the lab's model thinks: low, medium or high */
+  effort: Effort;
   /** who wrote it: the lab's API through the RetiVASC server, or the model on this computer */
   writer: 'online' | 'local';
   model: string;
@@ -129,23 +135,22 @@ export function judgements(text: string, language: Language): string[] {
 export const clean = (text: string) => text.replace(/<think>[\s\S]*?<\/think>\s*/g, '').replace(/\uFFFD/g, '').trim();
 
 export async function aiReport(ctx: RunContext): Promise<Record<string, NodeValue>> {
-  const language: Language = ctx.params.language === 'zh' ? 'zh' : 'en';
-  const focus = String(ctx.params.focus ?? '').trim();
+  const language: Language = 'en';  // the public demonstration is in English
+  const request = String(ctx.params.prompt ?? '').trim().slice(0, 1500);
+  const effort: Effort = EFFORTS.includes(ctx.params.effort as Effort) ? (ctx.params.effort as Effort) : 'medium';
   const sheet = ctx.cohort ? folderFacts(ctx.cohort as Cohort, language) : photoFacts((ctx.many?.results ?? []) as Source[], language);
-  if (!sheet.groups.length || (sheet.scope === 'folder' && sheet.groups.length < 2)) {
-    throw new Error('the connected steps have no numbers to report; connect quality, segmentation or feature steps');
-  }
-  const user = reportPrompt(sheet, focus);
+  // any steps may be connected: those without numbers (an image, a view) just add nothing to the sheet
+  const user = reportPrompt(sheet, request);
   const chat = `report:${hash(SYSTEM[language] + user)}`;
-  const choice = (ctx.params.engine as Writer | undefined) ?? 'auto';
+  const choice = (ctx.params.engine as Writer | undefined) ?? 'online';
   const status = choice === 'local' ? undefined : await onlineStatus();
-  if (choice === 'online' && !status?.enabled) throw new Error('the lab’s API cannot be reached from this page; choose “This computer”');
+  if (choice !== 'local' && !status?.enabled) throw new Error('the lab’s report service cannot be reached right now; please try again later');
   const checks = (text: string) => ({ unchecked: uncheckedNumbers(text, user), judged: judgements(text, language) });
   if (status?.enabled) {
     const t = performance.now();
-    const r = await online({ facts: sheet, focus }, (text) => ctx.progress({ stage: 'llm', message: 'The lab’s API is writing the report', text }));
+    const r = await online({ facts: sheet, prompt: request, effort }, (text) => ctx.progress({ stage: 'llm', message: 'The lab’s API is writing the report', text }));
     const text = r.text.trim();
-    return { report: { kind: 'report', text, facts: sheet, language, chat, focus, writer: 'online', model: status.model || 'the lab’s API', license: '',
+    return { report: { kind: 'report', text, facts: sheet, language, chat, request, effort, writer: 'online', model: status.model || 'the lab’s API', license: '',
       ms: performance.now() - t, cut: r.cut, ...checks(text), qa: [] } };
   }
   const manifest = await llm.manifest;
@@ -154,7 +159,7 @@ export async function aiReport(ctx: RunContext): Promise<Record<string, NodeValu
     (delta) => { text += delta; ctx.progress({ stage: 'llm', message: 'Writing the report', text: clean(text) }); }, ctx.progress);
   const final = clean(result.text);
   return {
-    report: { kind: 'report', text: final, facts: sheet, language, chat, focus, writer: 'local', model: manifest?.name ?? 'language model',
+    report: { kind: 'report', text: final, facts: sheet, language, chat, request, effort, writer: 'local', model: manifest?.name ?? 'language model',
       license: manifest?.license ?? '', result, ms: result.ms, cut: result.cut, ...checks(final), qa: [] },
   };
 }
@@ -164,12 +169,12 @@ export async function askReport(report: ReportValue, question: string, onText: (
   let a: string;
   if (report.writer === 'online') {
     const history = report.qa.map(({ q, a: answer }) => ({ q, a: answer }));
-    a = (await online({ facts: report.facts, focus: report.focus, report: report.text, history, question }, onText)).text.trim();
+    a = (await online({ facts: report.facts, prompt: report.request, effort: report.effort, report: report.text, history, question }, onText)).text.trim();
   } else {
     let text = '';
     const result = await llm.chat({ chat: report.chat, user: questionPrompt(question, report.language), maxTokens: 450, temperature: 0.3 },
       (delta) => { text += delta; onText(clean(text)); });
     a = clean(result.text);
   }
-  return { a, unchecked: uncheckedNumbers(a, `${reportPrompt(report.facts, '')}\n${report.text}`), judged: judgements(a, report.language) };
+  return { a, unchecked: uncheckedNumbers(a, `${reportPrompt(report.facts, report.request)}\n${report.text}`), judged: judgements(a, report.language) };
 }

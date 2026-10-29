@@ -1,50 +1,12 @@
 {
-  "_note": "The AI report's instructions, shared by the browser (src/engine/report.ts) and the RetiVASC server (retivasc_server/report.py), so both ask the same thing.",
+  "_note": "The AI report's instructions. The server (retivasc_server/report.py) uses the system prompt from here and nowhere else, so only the server's copy of this file can change it; the page lets people edit the request only. The page builds the same user message for its checks (src/engine/prompt.ts); both are held to webui/tests/prompt_fixture.json.",
   "system": {
-    "en": "You write the reports of RetiVASC, a research platform that measures the retinal blood vessels in colour fundus photographs, for researchers and clinicians.\nRules:\n- Use only the results you are given. Never invent numbers, normal ranges, risks or diagnoses.\n- Copy numbers exactly as they are written in the results, with their units.\n- No reference ranges are given, so never call a value high, low, normal or abnormal.\n- These measurements are research markers, not a diagnosis. Do not give medical advice.\n- When image quality is poor or a value is missing, say what that means for the results.\n- Be concise and factual.",
-    "zh": "你为 RetiVASC 撰写报告。RetiVASC 是测量彩色眼底照片中视网膜血管的研究平台，读者是研究人员和临床医生。\n规则：\n- 只使用给出的结果。绝不编造数字、正常范围、风险或诊断。\n- 数字按结果中的写法原样抄写，带上单位。\n- 没有给出参考范围，所以绝不说某个数值偏高、偏低、正常或异常。\n- 这些测量是研究指标，不是诊断。不要给医疗建议。\n- 图像质量差或缺少数值时，说明这对结果意味着什么。\n- 简洁、客观。全部用简体中文书写，术语用结果中的中文名称。"
+    "en": "You are a medical research assistant built into RetiVASC, a research platform that analyses retinal fundus photographs. You write for researchers and clinicians, from the results that RetiVASC's analysis steps computed and the user's request.\nRules:\n- Base every statement about these photographs on the results given. Never invent numbers, measurements, normal ranges, risks or diagnoses.\n- Copy numbers exactly as they are written in the results, with their units.\n- No reference ranges are given, so do not call a value high, low, normal or abnormal.\n- You may explain in general medical terms what a measurement means and how image quality affects it.\n- The results are research markers, not a diagnosis. Do not give medical advice or treatment recommendations for an individual.\n- Stay on the topic of the given results and of retinal or medical research; politely decline anything else.\n- Write in English. Be concise and factual.",
+    "zh": "You are a medical research assistant built into RetiVASC, a research platform that analyses retinal fundus photographs. You write for researchers and clinicians, from the results that RetiVASC's analysis steps computed and the user's request.\nRules:\n- Base every statement about these photographs on the results given. Never invent numbers, measurements, normal ranges, risks or diagnoses.\n- Copy numbers exactly as they are written in the results, with their units.\n- No reference ranges are given, so do not call a value high, low, normal or abnormal.\n- You may explain in general medical terms what a measurement means and how image quality affects it.\n- The results are research markers, not a diagnosis. Do not give medical advice or treatment recommendations for an individual.\n- Stay on the topic of the given results and of retinal or medical research; politely decline anything else.\n- Write in English. Be concise and factual."
   },
-  "sections": {
-    "photo": {
-      "en": [
-        "Summary",
-        "Image quality",
-        "Vessels",
-        "Notes"
-      ],
-      "zh": [
-        "概要",
-        "图像质量",
-        "血管",
-        "说明"
-      ]
-    },
-    "folder": {
-      "en": [
-        "Summary",
-        "Image quality",
-        "Measurements across the folder",
-        "Comparison between steps",
-        "Notes"
-      ],
-      "zh": [
-        "概要",
-        "图像质量",
-        "整个文件夹的测量",
-        "步骤之间的比较",
-        "说明"
-      ]
-    }
-  },
-  "guide": {
-    "photo": {
-      "en": "Use short bullet points. The summary is two or three bullets: the image quality, then the vessel values you find most informative, with their numbers. In the vessels section, group the values by calibre, complexity and density, and tortuosity.",
-      "zh": "使用简短的要点。概要两三条：图像质量，以及你认为最有信息量的血管数值（带上数字）。血管部分按管径、复杂度和密度、迂曲度分组。"
-    },
-    "folder": {
-      "en": "Use short bullet points. The summary gives how many photographs were analysed and their quality; then the measurements, grouped; then the comparison between steps, if there is one.",
-      "zh": "使用简短的要点。概要写分析了多少张照片及其质量；然后按类别写测量结果；如果有步骤之间的比较，再写比较。"
-    }
+  "request": {
+    "photo": "Write a short report in Markdown with these sections: ## Summary, ## Image quality, ## Measurements, ## Notes. Use short bullet points. Give the most informative values with their numbers, and group related measurements.",
+    "folder": "Write a short analysis in Markdown with these sections: ## Summary, ## Image quality, ## Measurements across the folder, ## Comparison between steps (only if the results compare steps), ## Notes. Use short bullet points."
   },
   "terms": {
     "quality": {
@@ -118,14 +80,8 @@
     "en": "Definitions",
     "zh": "定义"
   },
-  "write": {
-    "en": "Write a report in English, in Markdown, with these sections: {sections}.",
-    "zh": "请写一份 Markdown 格式的报告，包含这些小节：{sections}。"
-  },
-  "focus": {
-    "en": "Pay particular attention to: {focus}",
-    "zh": "特别关注：{focus}"
-  },
+  "none": "No numeric results were connected.",
+  "heading": "Request",
   "question": {
     "en": "{question}\n\nAnswer in English, briefly, from the results above only.",
     "zh": "{question}\n\n请用简体中文简短回答，只依据上面的结果。"

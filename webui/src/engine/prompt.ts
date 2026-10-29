@@ -5,9 +5,6 @@
 import type { FactSheet, Language } from './facts';
 import PROMPTS from './prompts.json';
 
-/** Whether a folder sheet compares two steps (its last group). */
-export const compares = (sheet: FactSheet) => sheet.groups.some((g) => g.title === 'Comparison between steps' || g.title === '步骤之间的比较');
-
 export function factsText(sheet: FactSheet): string {
   const colon = sheet.language === 'zh' ? '：' : ':';
   return sheet.groups.map((g) => [`${g.title}${g.note ? (sheet.language === 'zh' ? `（${g.note}）` : ` (${g.note})`) : ''}${colon}`,
@@ -18,29 +15,19 @@ export function termsText(sheet: FactSheet): string {
   return sheet.terms.map((t) => `- ${PROMPTS.terms[t][sheet.language]}`).join('\n');
 }
 
-// the instructions are shared with the RetiVASC server, which writes reports through the lab's API
+// the server writes with this system prompt; the page cannot change it
 export const SYSTEM: Record<Language, string> = PROMPTS.system;
 
-/** The sections asked for, as the prompt lists them. */
-function sectionList(sheet: FactSheet): string {
-  const l = sheet.language;
-  const sections = PROMPTS.sections[sheet.scope][l].filter((_, i) => sheet.scope === 'photo' || i !== 3 || compares(sheet));
-  return l === 'zh' ? sections.map((x) => `“## ${x}”`).join('、') : sections.map((x) => `"## ${x}"`).join(', ');
-}
+/** The editable part of the prompt, as it starts out. */
+export const DEFAULT_REQUEST: Record<FactSheet['scope'], string> = PROMPTS.request;
 
-export function reportPrompt(sheet: FactSheet, focus: string): string {
-  const l = sheet.language, colon = l === 'zh' ? '：' : ':';
-  return [
-    `${PROMPTS.results[sheet.scope][l]}${colon}`,
-    factsText(sheet),
-    '',
-    `${PROMPTS.definitions[l]}${colon}`,
-    termsText(sheet),
-    '',
-    PROMPTS.write[l].replace('{sections}', sectionList(sheet)),
-    PROMPTS.guide[sheet.scope][l],
-    focus ? PROMPTS.focus[l].replace('{focus}', focus) : '',
-  ].join('\n').trim();
+/** The results, their definitions, and the request (the default one when it is empty). */
+export function reportPrompt(sheet: FactSheet, request: string): string {
+  const l = sheet.language;
+  const parts = [`${PROMPTS.results[sheet.scope][l]}:`, sheet.groups.length ? factsText(sheet) : PROMPTS.none];
+  if (sheet.terms.length) parts.push('', `${PROMPTS.definitions[l]}:`, termsText(sheet));
+  parts.push('', `${PROMPTS.heading}:`, request.trim() || DEFAULT_REQUEST[sheet.scope]);
+  return parts.join('\n').trim();
 }
 
 export function questionPrompt(question: string, language: Language): string {

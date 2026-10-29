@@ -23,6 +23,7 @@ import { engine } from './runtime/engine';
 import type { EngineInfo, GpuChoice, ModelKey, ModelNeed, ModelStatus, Progress } from './runtime/protocol';
 import { StudioContext, type Studio, type StudioNodeData, type ViewSettings } from './ui/context';
 import { FlowNode, type StudioNode } from './ui/FlowNode';
+import { RemovableEdge } from './ui/RemovableEdge';
 import { Home } from './ui/Home';
 import { Inspector } from './ui/Inspector';
 import { DRAG_TYPE, Sidebar } from './ui/Sidebar';
@@ -35,12 +36,13 @@ import { useFolderRun } from './ui/FolderPanel';
 import { api } from './server/api';
 import { exposeTestHooks } from './testHooks';
 import { llm } from './llm/llm';
-import { onlineStatus, stopWriting } from './engine/report';
+import { stopWriting } from './engine/report';
 import type { LlmManifest, LlmStatus } from './llm/protocol';
 import { Grip } from './ui/Grip';
 import { isNum, useRemembered } from './remember';
 
 const nodeTypes = { studio: FlowNode };
+const edgeTypes = { removable: RemovableEdge };
 
 /** Edge colour per port type; the values live in styles.css so they follow the theme. */
 const portColor = (type: PortType | undefined) => (type ? `var(--port-${type})` : 'var(--faint)');
@@ -76,6 +78,7 @@ function styledEdge(nodes: StudioNode[], e: { source: string; sourceHandle: stri
   return {
     id: `${e.source}.${e.sourceHandle}->${e.target}.${e.targetHandle}`,
     ...e,
+    type: 'removable',
     style: { stroke: portColor(type), strokeWidth: 2 },
   };
 }
@@ -87,6 +90,17 @@ function toNodes(wf: WorkflowFile): StudioNode[] {
     position: n.position,
     data: { type: n.type, params: { ...(SPECS[n.type]?.defaults ?? {}), ...(n.params ?? {}) }, state: IDLE },
   }));
+}
+
+/** A step and every step it needs, directly or not. */
+function upstream(edges: Edge[], start: string): Set<string> {
+  const seen = new Set([start]);
+  const queue = [start];
+  while (queue.length) {
+    const id = queue.shift()!;
+    for (const e of edges) if (e.target === id && !seen.has(e.source)) { seen.add(e.source); queue.push(e.source); }
+  }
+  return seen;
 }
 
 function downstream(edges: Edge[], start: string): Set<string> {
@@ -115,8 +129,6 @@ export function App() {
   // the language model of the AI report step: null when this site has none
   const [llmManifest, setLlmManifest] = useState<LlmManifest | null>();
   const [llmStatus, setLlmStatus] = useState<LlmStatus>();
-  // the lab's API, through the RetiVASC server, writes reports when this page can reach it
-  const [online, setOnline] = useState(false);
   const [samples, setSamples] = useState<Sample[]>([]);
   const [running, setRunning] = useState(false);
   const [stopping, setStopping] = useState(false);
@@ -161,7 +173,7 @@ export function App() {
 
   const busy = useRef(false);
   const again = useRef(false);  // a run asked for while another runs (e.g. a workflow opened mid-run)
-  const run = useCallback(async (): Promise<RunSummary | undefined> => {
+  const run = useCallback(async (target?: string): Promise<RunSummary | undefined> => {
     if (busy.current) {
       again.current = true;
       return;
@@ -172,7 +184,8 @@ export function App() {
       await engine.ready;
       const graphNodes = nodesRef.current.map((n) => ({ id: n.id, type: n.data.type, params: n.data.params }));
       const graphEdges = edgesRef.current.map((e) => ({ source: e.source, sourceHandle: e.sourceHandle ?? '', target: e.target, targetHandle: e.targetHandle ?? '' }));
-      const summary = await executor.run(graphNodes, graphEdges, (id, state) => patchNode(id, { state }));
+      const only = target ? upstream(edgesRef.current, target) : undefined;
+      const summary = await executor.run(graphNodes, graphEdges, (id, state) => patchNode(id, { state }), only);
       setLastRun(summary);
       void refreshModels();
       return summary;
@@ -212,7 +225,6 @@ export function App() {
     engine.ready.then((info) => { setEngineInfo(info); void refreshModels(); }, (e: Error) => setEngineError(e.message));
     loadSamples().then(setSamples, () => setSamples([]));
     void llm.manifest.then((m) => setLlmManifest(m ?? null));
-    void onlineStatus().then((st) => setOnline(st.enabled));
     load(FIRST);
   }, []);
 
@@ -383,7 +395,7 @@ export function App() {
   }, [nodes, engineInfo]);
 
   // the model on this computer, where a report step would use it
-  const local = (params: Record<string, unknown>) => params.engine === 'local' || (params.engine !== 'online' && !online);
+  const local = (params: Record<string, unknown>) => params.engine === 'local';  // frozen: only a workflow file asks for it
   const usesLlm = !!llmManifest && nodes.some((n) => SPECS[n.data.type]?.llm && local(n.data.params));
   useEffect(() => {
     if (usesLlm) llm.status().then(setLlmStatus, () => setLlmStatus(undefined));
@@ -433,17 +445,44 @@ export function App() {
     };
   }, [engineInfo, needs, modelStatus, preloading, usesLlm, llmManifest, llmStatus]);
 
+  // the menu of each step, and the × on a selected connection
+  const runStep = useCallback((id: string) => { void run(id); }, [run]);
+  const removeEdge = useCallback((edgeId: string) => {
+    const e = edgesRef.current.find((x) => x.id === edgeId);
+    setEdges((es) => es.filter((x) => x.id !== edgeId));
+    if (e) setParams(e.target, {});  // what came after it has to run again
+  }, [setEdges, setParams]);
+  const disconnect = useCallback((id: string) => {
+    setEdges((es) => es.filter((e) => e.target !== id));
+    setParams(id, {});
+  }, [setEdges, setParams]);
+  const remove = useCallback((id: string) => {
+    for (const e of edgesRef.current) if (e.source === id) setParams(e.target, {});
+    setEdges((es) => es.filter((e) => e.source !== id && e.target !== id));
+    setNodes((ns) => ns.filter((n) => n.id !== id));
+    setSelected((sel) => (sel === id ? undefined : sel));
+  }, [setEdges, setNodes, setParams]);
+  const duplicate = useCallback((id: string) => {
+    const node = nodesRef.current.find((n) => n.id === id);
+    if (!node) return;
+    let copy = '';
+    do copy = `${node.data.type.split('.').pop()}-${counter.current++}`;
+    while (nodesRef.current.some((n) => n.id === copy));
+    setNodes((ns) => [...ns, { ...node, id: copy, selected: false, position: { x: node.position.x + 40, y: node.position.y + 40 },
+      data: { ...node.data, params: { ...node.data.params }, state: IDLE } }]);
+    setSelected(copy);
+  }, [setNodes]);
+
   const studio: Studio = useMemo(
-    () => ({ executor, workflow: name, engine: engineInfo, samples, running, setParams, setType, setView }),
-    [executor, name, engineInfo, samples, running, setParams, setType, setView],
+    () => ({ executor, workflow: name, engine: engineInfo, samples, running, setParams, setType, setView, runStep, duplicate, disconnect, remove, removeEdge }),
+    [executor, name, engineInfo, samples, running, setParams, setType, setView, runStep, duplicate, disconnect, remove, removeEdge],
   );
   const selectedNode = nodes.find((n) => n.id === selected);
   const browserNode = nodes.find((n) => n.data.state.status === 'running' && SPECS[n.data.type]?.group !== 'server');
 
   // a pipeline needs every model its steps use; until the engine has started, assume they are there
   const missing = (wf: WorkflowFile) =>
-    (!!engineInfo && wf.nodes.some((n) => { const m = SPECS[n.type]?.model; return !!m && !engineInfo.manifest.models[m]; }))
-    || (llmManifest === null && !online && wf.nodes.some((n) => SPECS[n.type]?.llm));
+    !!engineInfo && wf.nodes.some((n) => { const m = SPECS[n.type]?.model; return !!m && !engineInfo.manifest.models[m]; });
 
   if (view === 'home') {
     return (
@@ -462,9 +501,13 @@ export function App() {
             nodes={nodes}
             edges={edges}
             nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            // removed with Delete or Backspace: what came after has to run again
+            onEdgesDelete={(es) => es.forEach((e) => setParams(e.target, {}))}
+            onNodesDelete={(ns) => ns.forEach((n) => edgesRef.current.filter((e) => e.source === n.id).forEach((e) => setParams(e.target, {})))}
             isValidConnection={isValidConnection}
             onNodeClick={(_, n) => setSelected(n.id)}
             onPaneClick={() => setSelected(undefined)}

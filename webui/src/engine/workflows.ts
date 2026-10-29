@@ -76,7 +76,7 @@ const automorph: WorkflowFile = {
 };
 
 /** Ours: the lab's TPOT enhancement first, then AutoMorph's segmentation and measurements on the enhanced photo,
- *  written up by the AI report (a language model on this computer). */
+ *  written up by the AI report (the lab's language model). */
 const retivasc: WorkflowFile = {
   format: 'retivasc-studio/1',
   id: 'retivasc',

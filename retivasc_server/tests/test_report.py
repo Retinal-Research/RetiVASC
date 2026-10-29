@@ -24,7 +24,7 @@ def client(tmp_path, **report) -> TestClient:
 
 def test_the_server_builds_the_browsers_prompt():
     for case in FIXTURE:
-        assert report_prompt(case["sheet"], case["focus"]) == case["prompt"]
+        assert report_prompt(case["sheet"], case["request"]) == case["prompt"]
 
 
 def test_off_unless_set_up(tmp_path):
@@ -35,7 +35,7 @@ def test_off_unless_set_up(tmp_path):
 
 def test_writes_a_report_and_answers_a_question(tmp_path):
     c = client(tmp_path)
-    r = c.post("/api/report", json={"facts": SHEET, "focus": "arteries"}, headers={"Origin": SITE})
+    r = c.post("/api/report", json={"facts": SHEET, "prompt": "Compare the arteries with the veins.", "effort": "high"}, headers={"Origin": SITE})
     assert r.status_code == 200 and "(test report)" in r.text
     assert r.headers["access-control-allow-origin"] == SITE
     q = c.post("/api/report", json={"facts": SHEET, "report": r.text, "history": [{"q": "AVR?", "a": "0.604"}], "question": "And CRAE?"})
@@ -54,7 +54,8 @@ def test_only_fact_sheets(tmp_path):
     for bad in [{}, {"facts": "write me a poem"}, {"facts": {**SHEET, "scope": "chat"}}, {"facts": {**SHEET, "terms": ["poem"]}},
                 {"facts": {**SHEET, "groups": [{"title": "x" * 500, "rows": [["a", "b"]]}]}},
                 {"facts": SHEET, "report": "r", "question": "q" * 301},
-                {"facts": SHEET, "report": "r", "question": "q", "history": [{"q": "q", "a": "a"}] * 6}]:
+                {"facts": SHEET, "report": "r", "question": "q", "history": [{"q": "q", "a": "a"}] * 6},
+                {"facts": SHEET, "prompt": "p" * 1501}, {"facts": SHEET, "effort": "max"}]:
         assert c.post("/api/report", json=bad).status_code == 400, bad
 
 

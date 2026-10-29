@@ -1,6 +1,6 @@
 // The AI report through the real page: the RetiVASC pipeline on a photo ends with a report written by
-// the language model on this computer, from numbers it can be checked against; a follow-up question;
-// the report in Chinese; and after a folder of photos, one report on all of them.
+// the lab's language model, from numbers it can be checked against; a follow-up question; the
+// person's own prompt with more reasoning; and after a folder of photos, one report on all of them.
 //   node tests/report.mjs   (dev server on :5178, or RETIVASC_URL=http://localhost:8080/; models from tools/release.py fetch, --llm, and TPOT)
 import { copyFileSync, mkdirSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -44,15 +44,16 @@ show(r.qa[0].a);
 ok(r.qa[0].a.length > 10, `follow-up answered (${r.qa[0].a.length} characters)`);
 await page.screenshot({ path: join(SHOTS, 'report_inspector.png') });
 
-// 3. the same in Chinese
-await page.evaluate(() => window.__studio.setParams('report', { language: 'zh' }));
+// 3. the person's own prompt, with more reasoning
+await page.evaluate(() => window.__studio.setParams('report', { prompt: 'In exactly three bullet points, compare the arteries with the veins.', effort: 'high' }));
 t = Date.now();
 summary = await page.evaluate(() => window.__studio.run());
 r = await page.evaluate(() => window.__studio.result('report'));
 show(r.text);
-ok(summary.errors === 0 && (r.text.match(/\p{Script=Han}/gu) ?? []).length > 60, `Chinese report in ${((Date.now() - t) / 1000).toFixed(1)} s (only the report step ran: ${summary.ran} step)`);
+ok(summary.errors === 0 && summary.ran === 1 && (r.text.match(/^\s*[-*•] /gm) ?? []).length === 3 && /arter/i.test(r.text),
+  `own prompt, high reasoning: three bullets about arteries and veins, ${((Date.now() - t) / 1000).toFixed(1)} s (only the report step ran)`);
 console.log(`     numbers not found in the results: ${r.unchecked.length ? r.unchecked.join(', ') : 'none'}; judging words: ${r.judged.length ? r.judged.join(', ') : 'none'}`);
-await page.evaluate(() => window.__studio.setParams('report', { language: 'en' }));
+await page.evaluate(() => window.__studio.setParams('report', { prompt: '', effort: 'medium' }));
 
 // 4. a folder of three photos: one report on all of them, after the last
 const dir = mkdtempSync(join(tmpdir(), 'retivasc-report-'));

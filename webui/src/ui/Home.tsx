@@ -78,7 +78,7 @@ export function Home({ pipelines, missing, samples, onStart, appearance, theme, 
         <p className="hero-lab">{LAB} · {UNIVERSITY}</p>
         <p className="hero-what">
           RetiVASC enhances colour fundus photographs and measures their retinal blood vessels: image quality, vessels, arteries and veins,
-          the optic disc and 72 vascular phenotypes. An LLM on your computer turns the measurements into a report. One photograph or a folder of up to 1000.
+          the optic disc and 72 vascular phenotypes. An LLM writes up the measurements as a report. One photograph or a folder of up to 1000.
         </p>
         <div className="strip">
           {samples.slice(0, 6).map((s) => (
