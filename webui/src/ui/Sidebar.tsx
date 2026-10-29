@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { GROUP_LABEL, SPEC_LIST, type NodeGroup } from '../engine/specs';
+import { SPEC_LIST, type NodeGroup } from '../engine/specs';
 import { WORKFLOWS, type WorkflowFile } from '../engine/workflows';
 import { api } from '../server/api';
 import { JobsPanel } from './JobsPanel';
@@ -15,7 +15,16 @@ interface Props {
   server: boolean;
 }
 
-const GROUPS: NodeGroup[] = ['input', 'm0', 'enhance', 'm1', 'm2', 'm3', 'vascx', 'view', 'ai', 'server', 'study'];
+/** Skills by section: the lab's own modules, then each pipeline's steps under one heading. */
+const SECTIONS: Array<{ id: string; title: string; groups: NodeGroup[] }> = [
+  { id: 'input', title: 'Input', groups: ['input'] },
+  { id: 'retivasc', title: 'RetiVASC', groups: ['retivasc', 'ai'] },
+  { id: 'automorph', title: 'AutoMorph V2', groups: ['m0', 'm1', 'm2', 'm3'] },
+  { id: 'vascx', title: 'VascX', groups: ['vascx'] },
+  { id: 'view', title: 'View', groups: ['view'] },
+  { id: 'server', title: 'Server · full model', groups: ['server'] },
+  { id: 'study', title: 'Study sheet', groups: ['study'] },
+];
 
 // The study sheet is an optional server module; its steps are shown only where it is installed.
 function useSheet(server: boolean): boolean {
@@ -57,7 +66,7 @@ export function Sidebar({ current, onLoad, onAdd, server }: Props) {
   const listed = WORKFLOWS.filter(shown);
   const singles = listed.filter((wf) => wf.section === 'single');
   const onServer = listed.filter((wf) => wf.section === 'server');
-  const groups = GROUPS.filter(groupShown);
+  const sections = SECTIONS.map((sec) => ({ ...sec, groups: sec.groups.filter(groupShown) })).filter((sec) => sec.groups.length);
   return (
     <aside className="sidebar">
       {/* the pipelines are what most people want, so they never fold away */}
@@ -67,14 +76,14 @@ export function Sidebar({ current, onLoad, onAdd, server }: Props) {
       </section>
       {singles.length > 0 && <Fold id="singles" title="Single steps" count={singles.length}>{singles.map(entry)}</Fold>}
       {onServer.length > 0 && <Fold id="server" title="On the RetiVASC server" count={onServer.length}>{onServer.map(entry)}</Fold>}
-      <Fold id="skills" title="Skills" count={SPEC_LIST.filter((s) => groups.includes(s.group)).length}>
+      <Fold id="skills" title="Skills" count={SPEC_LIST.filter((s) => sections.some((sec) => sec.groups.includes(s.group))).length}>
         <p className="faint small">Each skill is one step. Drag it onto the canvas, or click to add.</p>
-        {groups.map((g) => (
-          <Fold key={g} id={`skills-${g}`} title={GROUP_LABEL[g]} open sub>
-            {SPEC_LIST.filter((s) => s.group === g).map((s) => (
+        {sections.map((sec) => (
+          <Fold key={sec.id} id={`skills-${sec.id}`} title={sec.title} open sub>
+            {SPEC_LIST.filter((s) => sec.groups.includes(s.group)).map((s) => (
               <button
                 key={s.type}
-                className={`lib-item g-${g}`}
+                className={`lib-item g-${s.group}`}
                 draggable
                 onDragStart={(e) => {
                   e.dataTransfer.setData(DRAG_TYPE, s.type);
@@ -84,7 +93,7 @@ export function Sidebar({ current, onLoad, onAdd, server }: Props) {
               >
                 <span className="kdot" />
                 <span>
-                  <span className="lib-title">{s.title}</span>
+                  <span className="lib-title">{s.title}{s.soon && <span className="soon">Coming soon</span>}</span>
                   <span className="lib-sub">{s.subtitle}</span>
                 </span>
               </button>

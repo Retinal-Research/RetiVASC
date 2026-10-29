@@ -3,9 +3,10 @@ import type { LabelMap, M0Geometry, QualityResult } from '../automorph/types';
 /** AutoMorph's four models, the four VascX models, and the lab's TPOT enhancement (with its fusion head). */
 export type ModelKey = 'quality' | 'vessel' | 'artery_vein' | 'disc_cup'
   | 'vx_av' | 'vx_vessel' | 'vx_disc' | 'vx_fovea'
-  | 'tpot' | 'tpot_fusion';
+  | 'tpot' | 'tpot_fusion'
+  | 'rrwnet';
 /** Each pipeline's models come from their own folder or host (their licences differ). */
-export type ModelSet = 'automorph' | 'vascx' | 'tpot';
+export type ModelSet = 'automorph' | 'vascx' | 'tpot' | 'rrwnet';
 export type Backend = 'webgpu' | 'wasm';
 /** Which device the browser computes on. A web page cannot list the graphics cards; it can only ask
  *  for the faster one (high-performance) or the power-saving one (usually the integrated GPU). */
@@ -89,6 +90,18 @@ export interface FoveaOutput { x: number; y: number; size: number; timing: Timin
 /** An enhanced copy of an M0 image, the same size; geometry is unchanged. */
 export interface EnhanceOutput extends ImageHandle { ms: number; timing: Timing }
 
+/** RRWNet on the square photo at 584: its AV3 map (R arteries, G veins, B vessels, 0-255, HWC), and the
+ *  vessel and artery/vein maps at AutoMorph's sizes (912, 720) for the 72 features. */
+export interface RRWNetOutput { size: number; av3: Uint8Array; vessel: Uint8Array; labels: Uint8Array; timing: Timing }
+
+/** RetiFlow on an AV3 map: the root, and for arteries and veins their branching points and centrelines. */
+export interface RetiFlowOutput {
+  root: [number, number];
+  artery: { points: import('../engine/values').Bifurcation[]; centerline: Uint8Array };
+  vein: { points: import('../engine/values').Bifurcation[]; centerline: Uint8Array };
+  ms: number;
+}
+
 export interface QualityOutput { result: QualityResult; timing: Timing }
 export interface VesselOutput { size: number; mask: Uint8Array; timing: Timing }
 export interface LabelOutput { map: LabelMap; timing: Timing }
@@ -110,7 +123,7 @@ export interface Progress {
 }
 
 export type EngineOp =
-  | { op: 'init'; base: string; models?: string; vascx?: string; tpot?: string; gpu?: GpuChoice }
+  | { op: 'init'; base: string; models?: string; vascx?: string; tpot?: string; rrwnet?: string; gpu?: GpuChoice }
   | { op: 'status' }
   | { op: 'preload'; models: ModelNeed[] }
   | { op: 'decode'; bytes: ArrayBuffer; name: string }
@@ -120,6 +133,8 @@ export type EngineOp =
   | { op: 'vx_prep'; imageId: string }
   | { op: 'vx_vessel' | 'vx_av' | 'vx_disc' | 'vx_fovea'; imageId: string }
   | { op: 'enhance'; imageId: string; quick?: boolean }
+  | { op: 'rrwnet'; imageId: string }
+  | { op: 'retiflow'; size: number; av3: Uint8Array }
   | { op: 'release'; ids: string[] };
 
 export type EngineMessage =

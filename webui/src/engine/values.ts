@@ -126,8 +126,46 @@ export interface FeaturesValue {
   forced: boolean;
 }
 
+/** RRWNet's probabilities on the square photo at `size`: R arteries, G veins, B vessels, 0-255, HWC.
+ *  The AV3 map RetiFlow takes. */
+export interface AVProbValue {
+  kind: 'avprob';
+  size: number;
+  data: Uint8Array;
+  timing: Timing;
+  base: M0Value;
+}
+
+/** One branching point RetiFlow found, in the pixels of its AV3 map. */
+export interface Bifurcation {
+  x: number;
+  y: number;
+  /** the angle between the two daughter vessels, degrees */
+  angle: number;
+  /** where the two daughter branches were traced to */
+  children: Array<[number, number]>;
+}
+
+/** RetiFlow: branching points and angles of the arteries and of the veins, measured separately. */
+export interface BifurcationsValue {
+  kind: 'bifurcations';
+  size: number;
+  /** the root its traversal starts from (near the optic disc), y and x */
+  root: [number, number];
+  artery: { points: Bifurcation[]; centerline: Uint8Array };
+  vein: { points: Bifurcation[]; centerline: Uint8Array };
+  ms: number;
+  base: M0Value;
+  /** the photo's AutoMorph grade, when connected: RetiFlow measures every photo, and says when it is not gradable */
+  gradable?: boolean;
+  /** RetiFlow could not measure this photo (the run goes on, with no branching points) */
+  failed?: string;
+  /** the vessel map looks implausible for a fundus photograph: the numbers need checking */
+  warning?: string;
+}
+
 /** The AI report: the language model's text and the numbers it was given (engine/report.ts). */
 export type ReportValue = import('./report').ReportValue;
 
-export type NodeValue = FundusValue | M0Value | QualityValue | VesselValue | ArteryVeinValue | DiscCupValue | FoveaValue | RunValue | SheetValue | AnalysisValue | FeaturesValue | ReportValue;
+export type NodeValue = FundusValue | M0Value | QualityValue | VesselValue | ArteryVeinValue | DiscCupValue | FoveaValue | RunValue | SheetValue | AnalysisValue | FeaturesValue | AVProbValue | BifurcationsValue | ReportValue;
 export type PortType = NodeValue['kind'];

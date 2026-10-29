@@ -47,8 +47,8 @@ ok(!(await page.isVisible('.wf:has-text("Vessel segmentation")')) && !(await pag
 await page.click('.fold-head:has-text("Single steps")');
 await page.click('.fold-head:has-text("Skills")');
 ok(await page.isVisible('.wf:has-text("Vessel segmentation")') && (await page.$$('.lib-item:visible')).length > 10, 'clicking a section opens it');
-await page.click('.fold-head:has-text("AutoMorph M2")');
-ok(!(await page.isVisible('.lib-item:has-text("M2 · Vessels")')) && await page.isVisible('.lib-item:has-text("M1 · Image quality")'), 'a skill group folds on its own');
+await page.click('.fold-head:has-text("AutoMorph V2")');
+ok(!(await page.isVisible('.lib-item:has-text("M2 · Vessels")')) && await page.isVisible('.lib-item:has-text("Enhance · TPOT")'), 'a skill group folds on its own');
 await page.reload();
 await page.waitForFunction(() => window.__studio?.engine());
 ok(await page.isVisible('.wf:has-text("Vessel segmentation")') && !(await page.isVisible('.lib-item:has-text("M2 · Vessels")')), 'folding is remembered after a reload');

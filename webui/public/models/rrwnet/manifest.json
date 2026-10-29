@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "source": "https://huggingface.co/j-morano/rrwnet-hrf",
+  "revision": "f64c297d81f05bcce2c40796c1a9bee4c72a1908",
+  "license": "CC BY-NC 4.0 (the weights on Hugging Face; the code is MIT). Non-commercial research use; cite RRWNet (Morano et al., Expert Systems with Applications 2024).",
+  "precision": "float16 weights, float32 arithmetic",
+  "models": {
+    "rrwnet": {
+      "label": "RRWNet artery/vein/vessel segmentation (HRF weights, 5 refinements)",
+      "bytes": 124216748,
+      "input": [
+        1,
+        3,
+        608,
+        608
+      ],
+      "members": "one network: a U-Net, then a second U-Net refining its own output 6 times",
+      "parts": [
+        {
+          "file": "rrwnet.onnx",
+          "bytes": 124216748,
+          "sha256": "a6a908087a8b6356e6a163cd575a611a31de0b12e9bf25de17627f5d63a13770",
+          "member": "rrwnet"
+        }
+      ]
+    }
+  }
+}

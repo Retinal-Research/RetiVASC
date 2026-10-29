@@ -33,6 +33,20 @@ export function onlineStatus(): Promise<{ enabled: boolean; model: string }> {
   return service;
 }
 
+/** The caller's quota for today, as the report service counts it (dollars of the lab's API, per IP, UTC day). */
+export interface Quota { used: number; limit: number; open: boolean }
+
+/** This browser's quota today, or undefined when the service cannot say. */
+export async function quota(): Promise<Quota | undefined> {
+  try {
+    const r = await fetch(REPORT_URL, { cache: 'no-store' });
+    const j = r.ok ? ((await r.json()) as { today?: Quota }) : undefined;
+    return j?.today;
+  } catch {
+    return undefined;
+  }
+}
+
 let writing: AbortController | undefined;
 
 /** Stop a report or an answer being written, by either model; the text so far is kept. */
@@ -41,10 +55,11 @@ export function stopWriting() {
   llm.stop();
 }
 
-/** The report service's answer as it arrives. */
-async function online(body: object, onText: (text: string) => void): Promise<{ text: string; cut: boolean }> {
+/** The report service's answer as it arrives, and how long the model thought before its first word. */
+async function online(body: object, onText: (text: string) => void): Promise<{ text: string; cut: boolean; thinkMs?: number }> {
   writing = new AbortController();
-  let text = '', cut = false;
+  const t = performance.now();
+  let text = '', cut = false, thinkMs: number | undefined;
   try {
     const r = await fetch(REPORT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: writing.signal });
     if (!r.ok || !r.body) {
@@ -56,6 +71,7 @@ async function online(body: object, onText: (text: string) => void): Promise<{ t
       const { done, value } = await reader.read();
       if (done) break;
       text += decoder.decode(value, { stream: true });
+      if (text) thinkMs ??= performance.now() - t;
       onText(text);
     }
   } catch (error) {
@@ -66,7 +82,7 @@ async function online(body: object, onText: (text: string) => void): Promise<{ t
   }
   const failed = /\n*\[report service error: ([^\]]*)\]\s*$/.exec(text);
   if (failed) throw new Error(`the lab's API: ${failed[1]}`);
-  return { text, cut };
+  return { text, cut, thinkMs };
 }
 
 export interface ReportValue {
@@ -87,6 +103,8 @@ export interface ReportValue {
   /** the local model's speed and token counts */
   result?: ChatResult;
   ms: number;
+  /** the lab's model: how long it thought before its first word (it does not send its reasoning) */
+  thinkMs?: number;
   /** Stop was pressed before the end */
   cut: boolean;
   /** numbers in the text that are not in the fact sheet */
@@ -148,10 +166,11 @@ export async function aiReport(ctx: RunContext): Promise<Record<string, NodeValu
   const checks = (text: string) => ({ unchecked: uncheckedNumbers(text, user), judged: judgements(text, language) });
   if (status?.enabled) {
     const t = performance.now();
-    const r = await online({ facts: sheet, prompt: request, effort }, (text) => ctx.progress({ stage: 'llm', message: 'The lab’s API is writing the report', text }));
+    ctx.progress({ stage: 'llm', message: 'The lab’s model is thinking' });
+    const r = await online({ facts: sheet, prompt: request, effort }, (text) => ctx.progress({ stage: 'llm', message: 'The lab’s model is writing the report', text }));
     const text = r.text.trim();
     return { report: { kind: 'report', text, facts: sheet, language, chat, request, effort, writer: 'online', model: status.model || 'the lab’s API', license: '',
-      ms: performance.now() - t, cut: r.cut, ...checks(text), qa: [] } };
+      ms: performance.now() - t, thinkMs: r.thinkMs, cut: r.cut, ...checks(text), qa: [] } };
   }
   const manifest = await llm.manifest;
   let text = '';

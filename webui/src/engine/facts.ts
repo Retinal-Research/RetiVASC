@@ -61,20 +61,29 @@ const FEATURES: Array<[string, Text, string, keyof typeof TERMS]> = [
   ['AVR_Knudtson_zone_c', T('AVR, Zone C', 'AVR（C 区）'), '', 'avr'],
 ];
 
-/** The simple measures (engine/summary.ts), as percentages or pixels. */
-const MEASURES: Record<string, [Text, 'share' | 'px', keyof typeof TERMS]> = {
+/** The simple measures (engine/summary.ts): percentages, pixels, counts or degrees. */
+type Kind = 'share' | 'px' | 'count' | 'deg';
+const MEASURES: Record<string, [Text, Kind, keyof typeof TERMS]> = {
   Vessel_share: [T('Vessels, share of the field of view', '血管占视野比例'), 'share', 'share'],
   Artery_share: [T('Arteries, share of the field of view', '动脉占视野比例'), 'share', 'share'],
   Vein_share: [T('Veins, share of the field of view', '静脉占视野比例'), 'share', 'share'],
   Disc_share: [T('Optic disc, share of the field of view', '视盘占视野比例'), 'share', 'share'],
   Fovea_x: [T('Fovea, x', '黄斑中心凹 x'), 'px', 'fovea'],
   Fovea_y: [T('Fovea, y', '黄斑中心凹 y'), 'px', 'fovea'],
+  Artery_branching_points: [T('Branching points, arteries', '分叉点数（动脉）'), 'count', 'branching'],
+  Artery_branching_angle: [T('Mean branching angle, arteries', '平均分叉角（动脉）'), 'deg', 'branching'],
+  Vein_branching_points: [T('Branching points, veins', '分叉点数（静脉）'), 'count', 'branching'],
+  Vein_branching_angle: [T('Mean branching angle, veins', '平均分叉角（静脉）'), 'deg', 'branching'],
+};
+const shown: Record<Kind, (x: number) => string> = {
+  share: (x) => pct(x), px: (x) => `${num(x)} px`, count: (x) => num(x), deg: (x) => `${num(x)}°`,
 };
 
 const GRADE: Record<string, Text> = { Good: T('Good', '好（Good）'), Usable: T('Usable', '可用（Usable）'), Reject: T('Reject', '不合格（Reject）') };
 const TITLE_ZH: Record<string, string> = {
   'Fundus photo': '眼底照片', 'Photo folder': '照片文件夹', Preprocess: '预处理', 'Enhance · TPOT': 'TPOT 增强', 'Image quality': '图像质量',
   Vessels: '血管', 'Artery / vein': '动脉/静脉', 'Optic disc & cup': '视盘和视杯', 'Optic disc': '视盘', 'Vascular features': '血管特征', Fovea: '黄斑中心凹',
+  'Arteries, veins and vessels · RRWNet': '动脉、静脉和血管 · RRWNet', 'Branching angles · RetiFlow': '分叉角 · RetiFlow',
 };
 const LABEL_ZH: Record<string, string> = { Input: '输入', View: '视图', 'Server · full model': '服务器 · 完整模型' };
 
@@ -151,13 +160,19 @@ export function photoFacts(sources: Source[], l: Language): FactSheet {
         ] });
         break;
       }
-      case 'vessel': case 'av': case 'disc': case 'fovea': {
+      case 'vessel': case 'av': case 'disc': case 'fovea': case 'bifurcations': {
         const rows = Object.entries(measures(v) ?? {}).map(([k, x]): [string, string] => {
           const [name, kind, term] = MEASURES[k];
           terms.add(term);
-          return [name[l], kind === 'share' ? pct(x) : `${num(x)} px`];
+          return [name[l], shown[kind](x)];
         });
-        groups.push({ title, note: where(v), rows });
+        const notes = [where(v)];
+        if (v.kind === 'bifurcations') {
+          if (v.failed) rows.push([l === 'zh' ? '分叉角' : 'Branching angles', l === 'zh' ? '未能测量' : 'not measured']);
+          if (v.gradable === false) notes.push(l === 'zh' ? '照片按 AutoMorph 的规则不可分析，分叉角仍然测了，需谨慎看待' : 'the photograph is not gradable by AutoMorph’s rule; branching was measured anyway and needs care');
+          if (v.warning) notes.push(l === 'zh' ? '血管图看起来不正常，数值需要核对' : 'the vessel map looks implausible, so these numbers need checking');
+        }
+        groups.push({ title, note: notes.filter(Boolean).join(l === 'zh' ? '；' : '; ') || undefined, rows });
         break;
       }
       case 'features': {
@@ -257,7 +272,7 @@ export function folderFacts(c: Cohort, l: Language): FactSheet {
         if (!s || !MEASURES[k]) continue;
         const [name, kind, term] = MEASURES[k];
         terms.add(term);
-        rows.push([name[l], statText(s, kind === 'share' ? pct : (x) => `${num(x)} px`, l)]);
+        rows.push([name[l], statText(s, shown[kind], l)]);
         byMeasure.set(k, [...(byMeasure.get(k) ?? []), { type, values }]);
       }
       groups.push({ title, rows });
@@ -272,7 +287,7 @@ export function folderFacts(c: Cohort, l: Language): FactSheet {
       const pairs = [...a.values].flatMap(([path, x]) => (b.values.has(path) ? [[x, b.values.get(path)!]] : []));
       if (pairs.length < 2) continue;
       const [name, kind] = MEASURES[k];
-      const show = kind === 'share' ? pct : (x: number) => `${num(x)} px`;
+      const show = shown[kind];
       const d = stats(pairs.map(([x, y]) => y - x))!;
       const mx = pairs.reduce((s, [x]) => s + x, 0) / pairs.length, my = pairs.reduce((s, [, y]) => s + y, 0) / pairs.length;
       const cov = pairs.reduce((s, [x, y]) => s + (x - mx) * (y - my), 0);

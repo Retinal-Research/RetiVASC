@@ -2,18 +2,18 @@ import { useState, type ReactNode } from 'react';
 import { QUALITY_CLASSES } from '../automorph/types';
 import { GROUP_LABEL, SPECS } from '../engine/specs';
 import { sourceName } from '../engine/sources';
-import type { NodeValue } from '../engine/values';
+import type { Bifurcation, NodeValue } from '../engine/values';
 import type { Timing } from '../runtime/protocol';
 import { DEFAULT_VIEW, useStudio } from './context';
 import { firstOutput, fovShare, type StudioNode } from './FlowNode';
 import { int, mb, ms, pct } from './format';
 import { ImageView } from './ImageView';
-import { countLabels, isLayer, LAYER_LABEL, layerCanvas, LEGEND, type LayerKind, type LayerValue } from './render';
+import { BRANCH_LABEL, BRANCH_LEGEND, branchCanvas, countLabels, isLayer, LAYER_LABEL, layerCanvas, LEGEND, type BranchKind, type LayerKind, type LayerValue } from './render';
 import { AnalysisView } from './AnalysisPanel';
 import { FolderInspector } from './FolderPanel';
 import { FeaturesView } from './FeaturesPanel';
 import { Markdown } from './Markdown';
-import { ReportView } from './ReportPanel';
+import { QuotaBar, ReportProgress, ReportView } from './ReportPanel';
 import { ANALYSIS_STEPS, SheetProgress, SheetSummaryView } from './SheetPanel';
 
 function Rows({ rows }: { rows: Array<[string, ReactNode]> }) {
@@ -46,10 +46,18 @@ function timingRows(t: Timing, adapter: string): Array<[string, ReactNode]> {
   return rows;
 }
 
+/** "42 · mean 78.2° (24–119°)" */
+export function angleSummary(points: Bifurcation[]): string {
+  if (!points.length) return 'no branching points';
+  const angles = points.map((p) => p.angle);
+  const mean = angles.reduce((a, b) => a + b, 0) / angles.length;
+  return `${points.length} · mean ${mean.toFixed(1)}° (${Math.min(...angles).toFixed(0)}–${Math.max(...angles).toFixed(0)}°)`;
+}
+
 export function Inspector({ node }: { node?: StudioNode }) {
   const studio = useStudio();
   const [opacity, setOpacity] = useState(DEFAULT_VIEW.opacity);
-  const [hidden, setHidden] = useState<Partial<Record<LayerKind, boolean>>>({});
+  const [hidden, setHidden] = useState<Partial<Record<LayerKind | BranchKind, boolean>>>({});
   const [before, setBefore] = useState(false);
 
   if (!node) {
@@ -83,7 +91,12 @@ export function Inspector({ node }: { node?: StudioNode }) {
       return isLayer(v) ? [[k, v] as [LayerKind, LayerValue]] : [];
     });
   }
-  const shown = layerValues.filter(([k]) => !hidden[k]).map(([, v]) => layerCanvas(v));
+  const branches = out?.kind === 'bifurcations' ? out : undefined;
+  const branchKinds: BranchKind[] = branches ? ['artery', 'vein'] : [];
+  const shown = [
+    ...layerValues.filter(([k]) => !hidden[k]).map(([, v]) => layerCanvas(v)),
+    ...branchKinds.filter((k) => !hidden[k]).map((k) => branchCanvas(branches!, k)),
+  ];
 
   const details: Array<[string, ReactNode]> = [];
   let footnote: string | undefined;
@@ -134,6 +147,13 @@ export function Inspector({ node }: { node?: StudioNode }) {
     if (spec.group !== 'vascx') details.push([`Cup (${n}²)`, `${int(c[2])} px`]);
   } else if (out?.kind === 'fovea') {
     details.push(['Fovea (x, y)', `${out.x.toFixed(1)}, ${out.y.toFixed(1)} px of ${int(out.size)}`]);
+  } else if (out?.kind === 'bifurcations') {
+    if (out.failed) details.push(['Not measured', out.failed]);
+    else details.push(['Arteries', angleSummary(out.artery.points)], ['Veins', angleSummary(out.vein.points)],
+      ['Root (x, y)', `${out.root[1]}, ${out.root[0]} px of ${int(out.size)}`], ['Time', ms(out.ms)]);
+    if (out.gradable === false) details.push(['Photo quality', 'not gradable by AutoMorph’s rule; measured anyway, read with care']);
+    if (out.warning) details.push(['Check', out.warning]);
+    footnote = 'RetiFlow (Retinal-Research, MIT licence), run in this browser on RRWNet’s probability maps. The artery and vein masks are completed in the probability field, each gets a probability-guided centreline, and the original RBAD traversal runs on it from the root (the densest part of the vessel tree, near the optic disc), then again after short gaps are bridged. A branching point counts when its two daughter vessels meet at 20° to 120°, measured 5 px or more from the point.';
   }
   if (spec.group === 'vascx' && spec.model) {
     footnote = (footnote ? `${footnote} ` : '') + 'VascX (Eyened Reading Center, Rotterdam), CC BY-NC 4.0: non-commercial research use. Run as retinalysis-inference does: the same windows, Gaussian blending and flips.';
@@ -167,17 +187,20 @@ export function Inspector({ node }: { node?: StudioNode }) {
         <div className="iscroll">
           {st.status === 'running' ? (
             <>
-              <p className="faint">{st.message}</p>
+              <ReportProgress since={st.since} text={st.text} effort={String(node.data.params.effort ?? 'medium')} />
               {st.text && <Markdown text={st.text} />}
             </>
           ) : out?.kind === 'report' ? (
             <ReportView key={out.chat} value={out} workflow={studio.workflow} />
           ) : (
-            <p className="footnote">
-              Connect any steps to this one and press Run: the lab’s language model writes up their results, and you can then ask
-              about them. After a Photo folder it writes one report on all the photos. Only the numbers are sent, through the RetiVASC
-              server; never the photographs.
-            </p>
+            <>
+              <p className="footnote">
+                Connect any steps to this one and press Run: the lab’s language model writes up their results, and you can then ask
+                about them. After a Photo folder it writes one report on all the photos. Only the numbers are sent, through the RetiVASC
+                server; never the photographs.
+              </p>
+              <QuotaBar />
+            </>
           )}
           {st.status === 'error' && <p className="error">{st.message}</p>}
         </div>
@@ -239,6 +262,21 @@ export function Inspector({ node }: { node?: StudioNode }) {
         <div className="legend">
           <button className={`chip ${before ? '' : 'on'}`} onClick={() => setBefore(false)}>After</button>
           <button className={`chip ${before ? 'on' : ''}`} onClick={() => setBefore(true)}>Before</button>
+        </div>
+      )}
+      {branches && (
+        <div className="legend">
+          {branchKinds.map((k) => (
+            <button key={k} className={`chip ${hidden[k] ? '' : 'on'}`} onClick={() => setHidden({ ...hidden, [k]: !hidden[k] })}>
+              {BRANCH_LABEL[k]}
+            </button>
+          ))}
+          <input className="slider" type="range" min={0} max={1} step={0.05} value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} title="Layer opacity" />
+          <div className="keys">
+            {BRANCH_LEGEND.map(([label, color]) => (
+              <span key={label}><span className="dot" style={{ background: color }} />{label}</span>
+            ))}
+          </div>
         </div>
       )}
       {layerValues.length > 0 && (

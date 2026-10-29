@@ -35,6 +35,7 @@ export class Engine {
       models: import.meta.env.VITE_MODELS_URL,
       vascx: import.meta.env.VITE_VASCX_URL,
       tpot: import.meta.env.VITE_TPOT_URL,
+      rrwnet: import.meta.env.VITE_RRWNET_URL,
       gpu: this.gpu,
     });
   }
