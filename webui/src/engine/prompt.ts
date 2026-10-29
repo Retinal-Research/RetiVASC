@@ -21,12 +21,18 @@ export const SYSTEM: Record<Language, string> = PROMPTS.system;
 /** The editable part of the prompt, as it starts out. */
 export const DEFAULT_REQUEST: Record<FactSheet['scope'], string> = PROMPTS.request;
 
-/** The results, their definitions, and the request (the default one when it is empty). */
-export function reportPrompt(sheet: FactSheet, request: string): string {
+/** What a step after the report can ask of it (prompts.json "needs"): a table, for now. */
+export type Need = keyof typeof PROMPTS.needs;
+export const NEEDS = Object.keys(PROMPTS.needs) as Need[];
+
+/** The results, their definitions, the request (the default one when it is empty), and what the steps
+ *  after the report need from it. */
+export function reportPrompt(sheet: FactSheet, request: string, needs: Need[] = []): string {
   const l = sheet.language;
   const parts = [`${PROMPTS.results[sheet.scope][l]}:`, sheet.groups.length ? factsText(sheet) : PROMPTS.none];
   if (sheet.terms.length) parts.push('', `${PROMPTS.definitions[l]}:`, termsText(sheet));
   parts.push('', `${PROMPTS.heading}:`, request.trim() || DEFAULT_REQUEST[sheet.scope]);
+  for (const n of needs) parts.push('', PROMPTS.needs[n][l]);
   return parts.join('\n').trim();
 }
 

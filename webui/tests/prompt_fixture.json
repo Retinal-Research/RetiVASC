@@ -49,6 +49,7 @@
    ]
   },
   "request": "Compare the arteries with the veins in two sentences.",
+  "needs": [],
   "prompt": "Results for one photograph:\nAutoMorph M1 · Image quality:\n- Grade: Good\n- Probability of Good: 0.975\n- Gradable by AutoMorph’s rule: yes\n\nAutoMorph M3 · Vascular features (photograph centred on the macula):\n- Cup-to-disc ratio, vertical: 0.405\n- CRAE, Zone B: 336.5 µm\n- AVR, Zone B: 0.604\n\nDefinitions:\n- Image quality: AutoMorph's quality model grades a photo Good, Usable or Reject. AutoMorph measures vessels only on gradable photos: Good, or Usable with a probability of Reject below 0.25.\n- Cup-to-disc ratio (CDR): the size of the optic cup relative to the optic disc.\n- AVR: arteriole-to-venule ratio, CRAE divided by CRVE. Arterioles are narrower than venules, so it is usually below 1.\n- Zone B is the ring from 2 to 3 disc radii around the centre of the optic disc; Zone C is from 2 to 5 disc radii.\n- Micrometre values use AutoMorph's standard scale for a field of view; compare them only between photos from the same kind of camera.\n\nRequest:\nCompare the arteries with the veins in two sentences."
  },
  {
@@ -94,6 +95,7 @@
    ]
   },
   "request": "",
+  "needs": [],
   "prompt": "Results for a folder of photographs:\nFolder:\n- Photos in the folder: 3\n- Analysed: 3\n\nAutoMorph M2 · Vessels:\n- Vessels, share of the field of view: n 3, mean 8.1%, SD 0.5%, median 8%, range 7.6% to 8.6%\n\nComparison between steps:\n- Vessels, share of the field of view: VascX · Vessels minus AutoMorph M2 · Vessels: n 3, mean difference 1.2%, SD 0.3%, range 0.9% to 1.5%, correlation r 0.97\n\nDefinitions:\n- Folder statistics: n is the number of photos with a value; SD the standard deviation; for two steps that measure the same thing, the difference is the second minus the first, photo by photo.\n- Share of the field of view: the fraction of the circular photograph covered by the vessels, arteries, veins or optic disc that a segmentation found.\n\nRequest:\nWrite a short analysis in Markdown with these sections: ## Summary, ## Image quality, ## Measurements across the folder, ## Comparison between steps (only if the results compare steps), ## Notes. Use short bullet points."
  },
  {
@@ -104,6 +106,34 @@
    "groups": []
   },
   "request": "",
+  "needs": [],
   "prompt": "Results for one photograph:\nNo numeric results were connected.\n\nRequest:\nWrite a short report in Markdown with these sections: ## Summary, ## Image quality, ## Measurements, ## Notes. Use short bullet points. Give the most informative values with their numbers, and group related measurements."
+ },
+ {
+  "sheet": {
+   "scope": "photo",
+   "language": "en",
+   "terms": [],
+   "groups": [
+    {
+     "title": "RetiVASC · Branching angles · RetiFlow",
+     "rows": [
+      [
+       "Branching points, arteries",
+       "42"
+      ],
+      [
+       "Mean branching angle, arteries",
+       "80.14°"
+      ]
+     ]
+    }
+   ]
+  },
+  "request": "",
+  "needs": [
+   "table"
+  ],
+  "prompt": "Results for one photograph:\nRetiVASC · Branching angles · RetiFlow:\n- Branching points, arteries: 42\n- Mean branching angle, arteries: 80.14°\n\nRequest:\nWrite a short report in Markdown with these sections: ## Summary, ## Image quality, ## Measurements, ## Notes. Use short bullet points. Give the most informative values with their numbers, and group related measurements.\n\nA table step comes after this one. After the report, add the results as one table: a code block marked json, holding {\"title\": \"...\", \"columns\": [\"...\"], \"rows\": [[\"...\"]]}, where every cell is a string. Put one measurement per row (or one photograph per row, when the results are about several photographs and that reads better), with the unit in its own column or with the value. Copy every number exactly as the results give it, and add nothing that is not in the results. Write nothing after the code block."
  }
 ]

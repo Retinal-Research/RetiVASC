@@ -13,6 +13,7 @@ import { FolderBody, FolderFoot } from './FolderPanel';
 import { FeaturesView } from './FeaturesPanel';
 import { Markdown } from './Markdown';
 import { ReportProgress } from './ReportPanel';
+import { TableView } from './TablePanel';
 import { NodeMenu } from './NodeMenu';
 import { DEFAULT_REQUEST } from '../engine/prompt';
 import { ANALYSIS_STEPS, SheetProgress, SheetSummaryView } from './SheetPanel';
@@ -214,6 +215,11 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
           </>
         );
       }
+      case 'view.table': {
+        const v = out?.kind === 'table' ? out : undefined;
+        return v ? <TableView value={v} workflow={studio.workflow} />
+          : <div className="empty">Connect steps with results (or an AI report), then Run</div>;
+      }
       case 'retivasc.gpt':
         return (
           <div className="soon-card">
@@ -310,7 +316,7 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
                 Prompt
                 {data.params.prompt ? <button className="linkbtn" onClick={() => studio.setParams(id, { prompt: '' })}>Default</button> : null}
               </span>
-              <textarea className="select ai-prompt" rows={4} maxLength={1500} value={String(data.params.prompt || DEFAULT_REQUEST[folderScope ? 'folder' : 'photo'])}
+              <textarea className="select ai-prompt" rows={4} value={String(data.params.prompt || DEFAULT_REQUEST[folderScope ? 'folder' : 'photo'])}
                         onChange={(e) => studio.setParams(id, { prompt: e.target.value === DEFAULT_REQUEST[folderScope ? 'folder' : 'photo'] ? '' : e.target.value })}
                         title="What to write. The rules the model follows are fixed on the RetiVASC server." />
             </label>

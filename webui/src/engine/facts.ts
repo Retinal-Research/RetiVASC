@@ -9,7 +9,7 @@ import type { PhotoRecord } from './folder';
 import { GROUP_LABEL, SPECS } from './specs';
 import PROMPTS from './prompts.json';
 import { measures } from './summary';
-import type { M0Value, NodeValue } from './values';
+import type { M0Value, NodeValue, Table } from './values';
 
 export type Language = 'en' | 'zh';
 type Text = Record<Language, string>;
@@ -44,8 +44,8 @@ export interface Cohort {
 /** Definitions the model is given for the rows it gets (shared with the server: prompts.json). */
 export const TERMS: Record<keyof typeof PROMPTS.terms, Text> = PROMPTS.terms;
 
-/** The AutoMorph M3 columns a report is about: [column, name, unit, term]. A small model given all
- *  72 values lists them instead of writing about them; all 72 stay on the M3 step and in the CSV. */
+/** AutoMorph M3 columns with a report name, unit and definition: [column, name, unit, term]. The model is
+ *  given all 72 values (and everything else connected to it); these come first, under these names. */
 const FEATURES: Array<[string, Text, string, keyof typeof TERMS]> = [
   ['CDR_vertical', T('Cup-to-disc ratio, vertical', '杯盘比（垂直）'), '', 'cdr'],
   ['Fractal_dimension', T('Fractal dimension, all vessels', '分形维数（全部血管）'), '', 'fractal'],
@@ -118,7 +118,8 @@ const yes = (b: boolean, l: Language) => (l === 'zh' ? (b ? '是' : '否') : b ?
 const gradableName = (l: Language) => (l === 'zh' ? '按 AutoMorph 的规则可分析' : 'Gradable by AutoMorph’s rule');
 const probability = (c: string, l: Language) => (l === 'zh' ? `${GRADE[c].zh}的概率` : `Probability of ${c}`);
 
-function featureRows(get: (col: string) => number | null | undefined, l: Language, terms: Set<keyof typeof TERMS>): Array<[string, string]> {
+/** The key features under their report names, then every other value under its column name. */
+function featureRows(get: (col: string) => number | null | undefined, l: Language, terms: Set<keyof typeof TERMS>, all: string[] = []): Array<[string, string]> {
   const rows: Array<[string, string]> = [];
   for (const [col, name, u, term] of FEATURES) {
     const x = get(col);
@@ -128,7 +129,79 @@ function featureRows(get: (col: string) => number | null | undefined, l: Languag
     if (term === 'caliber' || term === 'avr') terms.add('zones');
     if (u) terms.add('microns');
   }
+  for (const col of all) {
+    if (FEATURES.some(([c]) => c === col)) continue;
+    const x = get(col);
+    if (x !== null && x !== undefined) rows.push([col, num(x)]);
+  }
   return rows;
+}
+
+// ---------------------------------------------------------------- a Results table
+
+const QUALITY_COLUMNS: Record<string, Text> = {
+  Quality: T('Grade', '等级'), P_good: T('Probability of Good', '好（Good）的概率'), P_usable: T('Probability of Usable', '可用（Usable）的概率'),
+  P_reject: T('Probability of Reject', '不合格（Reject）的概率'), Gradable: T('Gradable by AutoMorph’s rule', '按 AutoMorph 的规则可分析'),
+};
+const ROWS_PER_GROUP = 5000;  // the report service's limit for a group
+
+/** What the report is told about a column of a Results table: its report name (with its definition) where
+ *  RetiVASC has one, else the column's own name. Every column goes in; the photo's name only names rows. */
+function columnOf(col: string, l: Language, terms: Set<keyof typeof TERMS>): { name: string; show: (v: string) => string } | null {
+  if (col === 'Name') return null;
+  const bare = col.replace(/^[\w-]+?_(?=(Quality|P_good|P_usable|P_reject|Gradable)$)/, '');
+  if (QUALITY_COLUMNS[bare]) {
+    terms.add('quality');
+    return { name: QUALITY_COLUMNS[bare][l], show: (v) => (GRADE[v] ? GRADE[v][l] : v === 'yes' || v === 'no' ? yes(v === 'yes', l) : num(Number(v))) };
+  }
+  const feature = FEATURES.find(([c]) => col === c || col.endsWith(`_${c}`));
+  if (feature) {
+    const [, name, u, term] = feature;
+    terms.add(term);
+    if (term === 'caliber' || term === 'avr') terms.add('zones');
+    if (u) terms.add('microns');
+    return { name: name[l], show: (v) => unit(num(Number(v)), u) };
+  }
+  const measure = Object.keys(MEASURES).find((k) => col === k || col.endsWith(`_${k}`));
+  if (measure) {
+    const [name, kind, term] = MEASURES[measure];
+    terms.add(term);
+    return { name: name[l], show: (v) => shown[kind](Number(v)) };
+  }
+  return { name: col, show: (v) => (v !== '' && Number.isFinite(Number(v)) && /\d{6,}/.test(v) ? num(Number(v)) : v) };
+}
+
+/** A table connected to the report: for one photo, its values; for several, each column's spread. */
+export function tableGroups(t: Table, l: Language, terms: Set<keyof typeof TERMS>): FactGroup[] {
+  const known = t.columns.includes('Name');  // RetiVASC's own results table, not one an AI wrote
+  const cols = t.columns.map((c, i) => ({ i, c: columnOf(c, l, terms) })).filter((x) => x.c);
+  let rows: Array<[string, string]>;
+  if (t.rows.length === 1) {
+    rows = cols.flatMap(({ i, c }) => (t.rows[0][i] === '' ? [] : [[c!.name, c!.show(t.rows[0][i])] as [string, string]]));
+  } else if (!known) {
+    // a table written by an AI report: its rows as they are, the first cell naming each
+    rows = t.rows.map((r) => [r[0], r.slice(1).filter(Boolean).join(', ')] as [string, string]);
+  } else {
+    terms.add('statistics');
+    rows = cols.flatMap(({ i, c }): Array<[string, string]> => {
+      const values = t.rows.map((r) => r[i]).filter((v) => v !== '');
+      if (!values.length) return [];
+      const numbers = values.map(Number);
+      if (numbers.every(Number.isFinite)) {
+        const s = stats(numbers)!;
+        return [[c!.name, statText(s, (x) => c!.show(String(x)), l)]];
+      }
+      const counts = new Map<string, number>();
+      for (const v of values) counts.set(c!.show(v), (counts.get(c!.show(v)) ?? 0) + 1);
+      return [[c!.name, [...counts].map(([v, n]) => `${v} ${ofTotal(n, values.length, l)}`).join('; ')]];
+    });
+  }
+  const note = [t.note, t.rows.length > 1 && known ? (l === 'zh' ? `${t.rows.length} 张照片` : `${t.rows.length} photographs`) : ''].filter(Boolean).join('; ') || undefined;
+  const groups: FactGroup[] = [];
+  for (let k = 0; k < rows.length; k += ROWS_PER_GROUP) {
+    groups.push({ title: k ? `${t.title} (${k / ROWS_PER_GROUP + 1})` : t.title, note, rows: rows.slice(k, k + ROWS_PER_GROUP) });
+  }
+  return groups;
 }
 
 // ---------------------------------------------------------------- one photograph
@@ -179,7 +252,7 @@ export function photoFacts(sources: Source[], l: Language): FactSheet {
         const notes = [where(v), centred(v.result.centredOn, l)];
         if (v.gradable === false && !v.forced) notes.push(l === 'zh' ? '不可分析，AutoMorph 只保留视盘数值' : 'not gradable, so AutoMorph keeps only the optic disc values');
         if (!v.result.discValid) notes.push(l === 'zh' ? '没有可靠地找到视盘，所以没有视盘和分区数值' : 'the optic disc was not found reliably, so there are no disc or zone values');
-        groups.push({ title, note: notes.filter(Boolean).join(l === 'zh' ? '；' : '; '), rows: featureRows((c) => v.result.features[c], l, terms) });
+        groups.push({ title, note: notes.filter(Boolean).join(l === 'zh' ? '；' : '; '), rows: featureRows((c) => v.result.features[c], l, terms, Object.keys(v.result.features)) });
         break;
       }
       case 'analysis': {
@@ -191,11 +264,14 @@ export function photoFacts(sources: Source[], l: Language): FactSheet {
           rows.push([l === 'zh' ? '等级' : 'Grade', GRADE[p.quality.grade][l]], ...QUALITY_CLASSES.map((c, i): [string, string] => [probability(c, l), num(probs[i])]),
             [gradableName(l), yes(p.quality.gradable, l)]);
         }
-        rows.push(...featureRows((c) => p.features?.[c], l, terms));
+        rows.push(...featureRows((c) => p.features?.[c], l, terms, Object.keys(p.features ?? {})));
         groups.push({ title: l === 'zh' ? 'AutoMorph v2 完整分析（RetiVASC 服务器）' : 'AutoMorph v2, full analysis on the RetiVASC server',
           note: p.centred_on ? centred(p.centred_on, l) : undefined, rows });
         break;
       }
+      case 'table':
+        for (const t of v.tables) groups.push(...tableGroups(t, l, terms).map((g) => ({ ...g, title: `${title} · ${g.title}` })));
+        break;
       default:
         break;  // images, study runs and other reports carry no numbers to report
     }
@@ -250,13 +326,18 @@ export function folderFacts(c: Cohort, l: Language): FactSheet {
     const feats = done.map((r) => r.features[id]).filter(Boolean);
     if (feats.length) {
       const rows: Array<[string, string]> = [];
-      for (const [col, name, u, term] of FEATURES) {
+      const columns = [...FEATURES.map(([c]) => c), ...new Set(feats.flatMap((f) => Object.keys(f.features)))].filter((c, i, a) => a.indexOf(c) === i);
+      for (const col of columns) {
         const s = stats(feats.map((f) => f.features[col]).filter((x): x is number => x !== null && x !== undefined));
         if (!s) continue;
-        rows.push([name[l], statText(s, (x) => unit(num(x), u), l)]);
-        terms.add(term);
-        if (term === 'caliber' || term === 'avr') terms.add('zones');
-        if (u) terms.add('microns');
+        const known = FEATURES.find(([c]) => c === col);
+        const u = known?.[2] ?? '';
+        rows.push([known ? known[1][l] : col, statText(s, (x) => unit(num(x), u), l)]);
+        if (known) {
+          terms.add(known[3]);
+          if (known[3] === 'caliber' || known[3] === 'avr') terms.add('zones');
+          if (u) terms.add('microns');
+        }
       }
       const macula = feats.filter((f) => f.centredOn === 'macula').length;
       groups.push({ title, rows, note: zh

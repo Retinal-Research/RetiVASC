@@ -52,6 +52,7 @@
   --port-disc: #ffd84a;
   --port-avprob: #e879f9;
   --port-bifurcations: #fb923c;
+  --port-table: #34d399;
   --well: #05070a;
   --shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
   --shadow-strong: 0 12px 32px rgba(0, 0, 0, 0.45);
@@ -117,6 +118,7 @@
   --port-disc: #ca8a04;
   --port-avprob: #c026d3;
   --port-bifurcations: #ea580c;
+  --port-table: #059669;
   --well: #0b1017;
   --shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 6px 18px rgba(15, 23, 42, 0.07);
   --shadow-strong: 0 10px 28px rgba(15, 23, 42, 0.16);
@@ -387,6 +389,7 @@ button.engine:hover { border-color: var(--line-strong); }
 .react-flow__handle.h.t-disc { background: var(--port-disc); }
 .react-flow__handle.h.t-avprob { background: var(--port-avprob); }
 .react-flow__handle.h.t-bifurcations { background: var(--port-bifurcations); }
+.react-flow__handle.h.t-table { background: var(--port-table); }
 .react-flow__handle.connectingto { box-shadow: 0 0 0 3px var(--handle-ring); }
 .react-flow__handle.connectionindicator:hover { transform: scale(1.25); }
 
@@ -978,3 +981,18 @@ button.sfile { background: none; cursor: pointer; text-align: left; font: inheri
   .tour-hole.lit::after, .tour-card, .tour-disc { animation: none; }
   .tour-vessel { animation: none; stroke-dashoffset: 0; }
 }
+
+/* the Results table step */
+.tables { display: flex; flex-direction: column; gap: 12px; }
+.tbl { display: flex; flex-direction: column; gap: 6px; }
+.tbl-head { display: flex; flex-direction: column; gap: 1px; font-size: 11.5px; }
+.tbl-title { font-weight: 600; }
+.tbl-body { max-height: 200px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.tbl-body.full { max-height: 60vh; }
+.rtable { border-collapse: collapse; font-size: 11px; font-variant-numeric: tabular-nums; width: 100%; }
+.rtable th, .rtable td { padding: 3px 7px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+.rtable thead th { position: sticky; top: 0; background: var(--panel-2); font-weight: 600; }
+.rtable.pairs th { color: var(--muted); font-weight: 500; }
+.rtable.pairs { table-layout: fixed; }
+.rtable.pairs th { width: 55%; overflow: hidden; text-overflow: ellipsis; }
+.rtable.pairs td { white-space: normal; overflow-wrap: anywhere; }

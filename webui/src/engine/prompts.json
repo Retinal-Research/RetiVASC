@@ -89,5 +89,11 @@
   "question": {
     "en": "{question}\n\nAnswer in English, briefly, from the results above only.",
     "zh": "{question}\n\n请用简体中文简短回答，只依据上面的结果。"
+  },
+  "needs": {
+    "table": {
+      "en": "A table step comes after this one. After the report, add the results as one table: a code block marked json, holding {\"title\": \"...\", \"columns\": [\"...\"], \"rows\": [[\"...\"]]}, where every cell is a string. Put one measurement per row (or one photograph per row, when the results are about several photographs and that reads better), with the unit in its own column or with the value. Copy every number exactly as the results give it, and add nothing that is not in the results. Write nothing after the code block.",
+      "zh": "这一步后面接着一个表格步骤。写完报告后，把结果整理成一张表：用标为 json 的代码块，内容是 {\"title\": \"...\", \"columns\": [\"...\"], \"rows\": [[\"...\"]]}，每个单元格都是字符串。每行一项测量（结果涉及多张照片、按照片排更清楚时，每行一张照片），单位单独一列或写在数值后面。数字照结果原样抄写，不要加入结果里没有的内容。代码块之后不要再写任何东西。"
+    }
   }
 }

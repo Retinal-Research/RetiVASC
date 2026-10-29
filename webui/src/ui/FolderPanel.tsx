@@ -5,7 +5,7 @@ import { useRef, useSyncExternalStore } from 'react';
 import type { Executor, FolderRun } from '../engine/executor';
 import { addFolder, FOLDER_LIMIT, getFolder } from '../engine/folder';
 import { useStudio } from './context';
-import { downloadCsv } from '../engine/csv';
+import { downloadCsv, recordsTable } from '../engine/table';
 import { ms, pct } from './format';
 
 export const useFolderRun = (executor: Executor): FolderRun | undefined => useSyncExternalStore(executor.subscribe, executor.folder);
@@ -66,7 +66,7 @@ export function FolderBody({ nodeId, params }: { nodeId: string; params: Record<
           ) : (
             <span className="hint">{c.left === 0 && run ? 'All photos done.' : run && c.done ? 'Press Run to continue.' : 'Press Run to start.'}</span>
           )}
-          <button className="btn small" disabled={!run || c.done + c.errors === 0} onClick={() => run && downloadCsv(run.photos.flatMap((p) => (run.records.has(p.path) ? [run.records.get(p.path)!] : [])), folder.name, studio.workflow)}>Download CSV</button>
+          <button className="btn small" disabled={!run || c.done + c.errors === 0} onClick={() => run && downloadCsv(recordsTable(run.photos.flatMap((p) => (run.records.has(p.path) ? [run.records.get(p.path)!] : [])), true), folder.name, studio.workflow)}>Download CSV</button>
         </div>
       )}
       {folder && !folder.refused && <div className="hint">Stop any time. Finished photos are kept in this browser: choose the same folder and press Run to continue.</div>}

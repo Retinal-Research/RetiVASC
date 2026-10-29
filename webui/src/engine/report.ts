@@ -5,13 +5,13 @@
 
 import { llm } from '../llm/llm';
 import type { ChatResult } from '../llm/protocol';
-import { folderFacts, photoFacts, type Cohort, type FactSheet, type Language, type Source } from './facts';
+import { folderFacts, photoFacts, tableGroups, type Cohort, type FactSheet, type Language, type Source } from './facts';
 import { hash } from './folder';
-import { questionPrompt, reportPrompt, SYSTEM } from './prompt';
+import { questionPrompt, reportPrompt, SYSTEM, type Need } from './prompt';
 
 export { reportPrompt, SYSTEM };
 import type { RunContext } from './specs';
-import type { NodeValue } from './values';
+import type { NodeValue, Table } from './values';
 
 export type { Language };
 
@@ -113,6 +113,31 @@ export interface ReportValue {
   judged: string[];
   /** follow-up questions and their answers, in order */
   qa: Array<{ q: string; a: string; unchecked: string[]; judged: string[] }>;
+  /** what the steps after it needed (a results table), and the table it wrote for them */
+  needs?: Need[];
+  table?: Table;
+  /** the table was asked for but could not be read */
+  tableError?: string;
+}
+
+/** The table the model wrote after its report (prompts.json needs.table): the last json code block. Its
+ *  numbers are checked like the text's. */
+export function takeTable(text: string): { text: string; table?: Table; error?: string } {
+  const m = /```json\s*([\s\S]*?)```\s*$/.exec(text.trim());
+  if (!m) return { text, error: 'the model wrote no table' };
+  const rest = text.trim().slice(0, m.index).trim();
+  try {
+    const j = JSON.parse(m[1]) as { title?: unknown; columns?: unknown; rows?: unknown };
+    const cells = (r: unknown) => (Array.isArray(r) ? r.map((c) => (c == null ? '' : String(c))) : null);
+    const columns = cells(j.columns);
+    const rows = Array.isArray(j.rows) ? j.rows.map(cells) : null;
+    if (!columns?.length || !rows || rows.some((r) => !r) || rows.length > 2000 || columns.length > 200) throw new Error('not a table');
+    const width = columns.length;
+    return { text: rest, table: { title: typeof j.title === 'string' && j.title ? j.title : 'Table written by the AI', note: 'written by the AI from the results; numbers checked', columns,
+      rows: (rows as string[][]).map((r) => [...r.slice(0, width), ...new Array(Math.max(0, width - r.length)).fill('')]) } };
+  } catch {
+    return { text: rest, error: 'the model’s table could not be read' };
+  }
 }
 
 /** Numbers as written: 0.673, 151.27, 8.1%, 1,234; years, list markers and zone letters are not numbers here. */
@@ -154,11 +179,19 @@ export const clean = (text: string) => text.replace(/<think>[\s\S]*?<\/think>\s*
 
 export async function aiReport(ctx: RunContext): Promise<Record<string, NodeValue>> {
   const language: Language = 'en';  // the public demonstration is in English
-  const request = String(ctx.params.prompt ?? '').trim().slice(0, 1500);
+  const request = String(ctx.params.prompt ?? '').trim();
   const effort: Effort = EFFORTS.includes(ctx.params.effort as Effort) ? (ctx.params.effort as Effort) : 'medium';
-  const sheet = ctx.cohort ? folderFacts(ctx.cohort as Cohort, language) : photoFacts((ctx.many?.results ?? []) as Source[], language);
-  // any steps may be connected: those without numbers (an image, a view) just add nothing to the sheet
-  const user = reportPrompt(sheet, request);
+  const sheet = ctx.cohort ? folderFacts(ctx.cohort as Cohort, language) : photoFacts((ctx.many?.context ?? []) as Source[], language);
+  if (ctx.cohort) {
+    // a Results table after the folder is a step of its own: its rows come in as its value, not as records
+    const terms = new Set(sheet.terms);
+    for (const { value: v } of ctx.many?.context ?? []) if (v.kind === 'table') for (const t of v.tables) sheet.groups.push(...tableGroups(t, language, terms));
+    sheet.terms = [...terms];
+  }
+  // any steps may be connected: those without numbers (an image, a view) just add nothing to the sheet.
+  // The steps after it say what they need: a results table gets a table as well as the report.
+  const needs: Need[] = ctx.downstream?.includes('view.table') ? ['table'] : [];
+  const user = reportPrompt(sheet, request, needs);
   const chat = `report:${hash(SYSTEM[language] + user)}`;
   const choice = (ctx.params.engine as Writer | undefined) ?? 'online';
   const status = choice === 'local' ? undefined : await onlineStatus();
@@ -167,10 +200,15 @@ export async function aiReport(ctx: RunContext): Promise<Record<string, NodeValu
   if (status?.enabled) {
     const t = performance.now();
     ctx.progress({ stage: 'llm', message: 'The lab’s model is thinking' });
-    const r = await online({ facts: sheet, prompt: request, effort }, (text) => ctx.progress({ stage: 'llm', message: 'The lab’s model is writing the report', text }));
-    const text = r.text.trim();
+    const shown = (text: string) => text.replace(/```json[\s\S]*$/, '').trim();  // the table goes to the table step
+    const r = await online({ facts: sheet, prompt: request, effort, needs }, (text) => ctx.progress({ stage: 'llm', message: needs.length ? 'The lab’s model is writing the report and the table' : 'The lab’s model is writing the report', text: shown(text) }));
+    const written = needs.includes('table') ? takeTable(r.text) : { text: r.text };
+    const text = written.text.trim();
+    const table = written.table;
+    const tableChecks = table ? uncheckedNumbers([table.columns, ...table.rows].flat().join('\n'), user) : [];
     return { report: { kind: 'report', text, facts: sheet, language, chat, request, effort, writer: 'online', model: status.model || 'the lab’s API', license: '',
-      ms: performance.now() - t, thinkMs: r.thinkMs, cut: r.cut, ...checks(text), qa: [] } };
+      ms: performance.now() - t, thinkMs: r.thinkMs, cut: r.cut, unchecked: [...new Set([...checks(text).unchecked, ...tableChecks])], judged: checks(text).judged,
+      qa: [], needs, table, tableError: 'error' in written ? written.error : undefined } };
   }
   const manifest = await llm.manifest;
   let text = '';

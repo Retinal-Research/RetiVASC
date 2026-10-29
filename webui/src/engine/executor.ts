@@ -258,8 +258,11 @@ export class Executor {
         if (!port.optional) waiting ??= `Connect “${port.label}”`;
         continue;
       }
-      if (cohort) continue;  // a folder report reads the run's records, not the last photo's values
+      // a folder step reads the run's records, not the last photo's values; but another folder step's result
+      // (an AI report's table for the results table) is read as usual
+      if (cohort && !connected.some((e) => SPECS[this.types.get(e.source) ?? '']?.cohort)) continue;
       for (const edge of port.multi ? connected : connected.slice(0, 1)) {
+        if (cohort && !SPECS[this.types.get(edge.source) ?? '']?.cohort) continue;
         const upstream = finished.get(edge.source);
         if (upstream === undefined) { waiting ??= 'An earlier step did not finish'; continue; }
         const value = this.records.get(edge.source)?.outputs[edge.sourceHandle];
@@ -273,7 +276,10 @@ export class Executor {
     // in a folder run every photo is new: the key names the photo, so nothing is reused across photos;
     // a folder report is new whenever the run has another photo done
     const of = cohort ? `|folder:${hash(cohort.records.map((r) => `${r.path}:${r.status}`).join('|'))}<${cohort.sources.map((c) => c.id).join(',')}` : '';
-    const key = `${node.type}|${stable(node.params)}|${parts.join('|')}${batch ? `|photo:${batch.photo.path}` : ''}${of}`;
+    // a language-model step writes for the steps after it (a table needs a table): those are part of its result
+    const downstream = [...new Set(edges.filter((e) => e.source === node.id).map((e) => this.types.get(e.target) ?? ''))].sort();
+    const writesFor = spec.llm ? `|for:${downstream.join(',')}` : '';
+    const key = `${node.type}|${stable(node.params)}|${parts.join('|')}${batch ? `|photo:${batch.photo.path}` : ''}${of}${writesFor}`;
     const previous = this.records.get(node.id);
     if (previous && previous.key === key) {
       finished.set(node.id, key);
@@ -291,6 +297,7 @@ export class Executor {
         params: node.params,
         batch,
         cohort,
+        downstream,
         progress: (p) => onState(node.id, { status: 'running', message: prefix + p.message, fraction: p.fraction, text: p.text, since, version: this.version }),
       });
       const ms = performance.now() - t;
@@ -358,11 +365,6 @@ export class Executor {
       this.setFolder({ running: false, stopping: false, current: undefined });
     }
     return this.folderRun.sessionDone;
-  }
-
-  /** The numbers of the photo on the canvas, as a CSV row holds them (one photo, not a folder). */
-  photoRecord(nodes: GraphNode[], name: string, ms: number): PhotoRecord {
-    return this.collect(name, nodes, ms);
   }
 
   /** The small results of one photo: every M1 grade and every M3 feature set downstream of the folder. */
