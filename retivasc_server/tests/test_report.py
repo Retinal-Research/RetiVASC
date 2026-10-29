@@ -18,7 +18,7 @@ SITE = "https://retinal-research.github.io"
 
 
 def client(tmp_path, **report) -> TestClient:
-    s = ReportSettings(enabled=True, provider="fake", **report)
+    s = ReportSettings(enabled=True, provider="fake", **{"per_window": 10, **report})  # tests send requests back to back
     return TestClient(create_app(Settings(data_dir=tmp_path / "data"), start_worker=False, report=s))
 
 
@@ -62,13 +62,19 @@ def test_limits(tmp_path):
     c = client(tmp_path, per_window=2, window_seconds=60)
     assert [c.post("/api/report", json={"facts": SHEET}).status_code for _ in range(3)] == [200, 200, 429]
     assert "wait" in c.post("/api/report", json={"facts": SHEET}, headers={"Origin": SITE}).json()["detail"]
-    lim = Limiter(ReportSettings(window_seconds=60, per_window=3, per_ip_per_day=4, per_day=6))
+    lim = Limiter(ReportSettings(window_seconds=1, per_window=1, max_running=3, ip_dollars_per_day=1.0, dollars_per_day=1.5))
     t = 1_000_000.0
-    assert [lim.take("a", t + 100 * i) for i in range(4)] == [None] * 4      # spread out: the window allows them
-    assert "today" in lim.take("a", t + 500)                               # but the day's 4 are used
-    assert [lim.take("b", t + 100 * i) for i in range(2)] == [None] * 2
-    assert "today's limit" in lim.take("c", t + 300)                       # 6 for everyone together
-    assert lim.take("c", t + 86_400 * 2) is None                           # a new day
+    assert lim.take("a", t) is None and "wait" in lim.take("a", t + 0.5)    # one a second
+    assert lim.take("a", t + 1) is None and lim.take("a", t + 2) is None    # three being written at once
+    assert "already" in lim.take("a", t + 3)
+    lim.done("a", 0.4, t + 4)
+    assert lim.take("a", t + 5) is None                                     # one finished: room again
+    for i in range(3):
+        lim.done("a", 0.2, t + 6)
+    assert "your" not in (lim.take("b", t + 7) or "") and "today's budget for reports" in lim.take("a", t + 8)  # a spent $1
+    lim.done("b", 0.6, t + 9)
+    assert "service has used today's budget" in lim.take("c", t + 10)       # $1.6 of $1.5 for everyone
+    assert lim.take("c", t + 86_400 * 2) is None                            # a new day
 
 
 def test_refuses_large_requests(tmp_path):

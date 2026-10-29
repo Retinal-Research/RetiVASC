@@ -17,10 +17,11 @@
     "key_env": "RETIVASC_REPORT_KEY",
     "key_file": "~/.config/lab-llm/apps/retivasc.key",
     "origins": ["https://retinal-research.github.io"],
-    "window_seconds": 60,
-    "per_window": 3,
-    "per_ip_per_day": 30,
-    "per_day": 500,
+    "window_seconds": 1,
+    "per_window": 1,
+    "max_running": 3,
+    "ip_dollars_per_day": 1.0,
+    "dollars_per_day": 10.0,
     "max_tokens": 4000
   }
 }

@@ -43,10 +43,13 @@ class ReportSettings:
     key_file: str = ""
     # pages that may call it from another origin (the public site, a dev server)
     origins: list[str] = field(default_factory=lambda: ["https://retinal-research.github.io"])
-    window_seconds: int = 60  # per IP: at most per_window requests in any window
-    per_window: int = 3
-    per_ip_per_day: int = 30
-    per_day: int = 500  # all IPs together
+    window_seconds: float = 1  # per IP: at most per_window requests in any window
+    per_window: int = 1
+    max_running: int = 3  # per IP: answers being written at once
+    ip_dollars_per_day: float = 1.0  # per IP, what the lab's API charged (UTC day)
+    dollars_per_day: float = 10.0  # all IPs together
+    # charged when the API reports no cost (an error part-way, say), to stay on the safe side
+    fallback_cost: float = 0.002
     max_tokens: int = 4000  # reasoning models count their thinking here too
     timeout: float = 120
 
@@ -73,37 +76,49 @@ def load() -> ReportSettings:
 # ---------------------------------------------------------------- limits
 
 class Limiter:
-    """Requests per IP in a sliding window and per UTC day, and per day for everyone."""
+    """Per IP: requests in a sliding window, answers being written at once, and dollars a day; and
+    dollars a day for everyone. Spending is what the lab's API reports for each answer."""
 
     def __init__(self, s: ReportSettings):
         self.s = s
         self.lock = threading.Lock()
         self.recent: dict[str, deque] = defaultdict(deque)
+        self.running: dict[str, int] = defaultdict(int)
         self.day = ""
-        self.daily: dict[str, int] = defaultdict(int)
-        self.total = 0
+        self.spent: dict[str, float] = defaultdict(float)
+        self.total = 0.0
+
+    def _today(self, now: float) -> None:
+        today = datetime.fromtimestamp(now, timezone.utc).strftime("%Y-%m-%d")
+        if today != self.day:
+            self.day, self.spent, self.total = today, defaultdict(float), 0.0
 
     def take(self, ip: str, now: float | None = None) -> str | None:
-        """None if the request may go ahead (and counts it), else why not."""
+        """None if the request may go ahead (it then counts as running until done()), else why not."""
         now = time.time() if now is None else now
-        today = datetime.fromtimestamp(now, timezone.utc).strftime("%Y-%m-%d")
         with self.lock:
-            if today != self.day:
-                self.day, self.daily, self.total = today, defaultdict(int), 0
+            self._today(now)
             q = self.recent[ip]
             while q and q[0] <= now - self.s.window_seconds:
                 q.popleft()
-            if self.total >= self.s.per_day:
-                return "the report service has reached today's limit; please try again tomorrow"
-            if self.daily[ip] >= self.s.per_ip_per_day:
-                return f"you have used today's {self.s.per_ip_per_day} reports; please try again tomorrow"
+            if self.total >= self.s.dollars_per_day:
+                return "the report service has used today's budget; please try again tomorrow"
+            if self.spent[ip] >= self.s.ip_dollars_per_day:
+                return "you have used today's budget for reports; please try again tomorrow"
+            if self.running[ip] >= self.s.max_running:
+                return f"{self.s.max_running} reports are being written for you already; please wait for one to finish"
             if len(q) >= self.s.per_window:
-                wait = int(q[0] + self.s.window_seconds - now) + 1
-                return f"too many reports at once; please wait {wait} s"
+                return "too many requests at once; please wait a moment"
             q.append(now)
-            self.daily[ip] += 1
-            self.total += 1
+            self.running[ip] += 1
             return None
+
+    def done(self, ip: str, cost: float, now: float | None = None) -> None:
+        with self.lock:
+            self._today(time.time() if now is None else now)
+            self.running[ip] = max(0, self.running[ip] - 1)
+            self.spent[ip] += cost
+            self.total += cost
 
 
 # ---------------------------------------------------------------- the request: a fact sheet, checked
@@ -193,15 +208,16 @@ def messages_of(body: dict) -> tuple[str, list[dict], str]:
 
 # ---------------------------------------------------------------- providers
 
-def fake(s: ReportSettings, system: str, messages: list[dict]) -> Iterator[str]:
+def fake(s: ReportSettings, system: str, messages: list[dict], charge) -> Iterator[str]:
     """A canned report built from the prompt's first lines: for tests, never for users."""
     first = messages[-1]["content"].splitlines()
     text = "## Summary\n- (test report) " + " ".join(first[1:4]) + "\n\n## Notes\n- Written by the test provider."
     for i in range(0, len(text), 20):
         yield text[i:i + 20]
+    charge(0.001)
 
 
-def gateway(s: ReportSettings, system: str, messages: list[dict]) -> Iterator[str]:
+def gateway(s: ReportSettings, system: str, messages: list[dict], charge) -> Iterator[str]:
     """The lab's LLM gateway on this machine (OpenAI-style chat, streamed), which holds the CreateAI token.
     RetiVASC has only its own app key for it."""
     import httpx
@@ -223,6 +239,9 @@ def gateway(s: ReportSettings, system: str, messages: list[dict]) -> Iterator[st
             chunk = json.loads(line[6:])
             if chunk.get("error"):
                 raise RuntimeError(chunk["error"].get("message", "the language model service failed"))
+            cost = ((chunk.get("usage") or {}).get("cost") or {}).get("total_token_cost")
+            if cost is not None:
+                charge(float(cost))
             for choice in chunk.get("choices") or []:
                 text = (choice.get("delta") or {}).get("content")
                 if text:
@@ -269,7 +288,7 @@ def install(app: FastAPI, s: ReportSettings) -> None:
     def status(request: Request):
         ready = s.enabled and s.provider in PROVIDERS and (s.provider == "fake" or bool(s.key()))
         r = JSONResponse({"enabled": ready, "model": s.model if ready else "",
-                          "limits": {"window_seconds": s.window_seconds, "per_window": s.per_window, "per_ip_per_day": s.per_ip_per_day}})
+                          "limits": {"per_second": s.per_window / s.window_seconds, "at_once": s.max_running, "dollars_per_day": s.ip_dollars_per_day}})
         cors(request, r)
         return r
 
@@ -289,17 +308,22 @@ def install(app: FastAPI, s: ReportSettings) -> None:
             except ValueError:
                 raise HTTPException(400, "send the fact sheet as JSON")
             system, messages, _ = messages_of(body)  # checked before it counts against the limits
-            refused = limiter.take(client_ip(request))
+            ip = client_ip(request)
+            refused = limiter.take(ip)
             if refused:
                 raise HTTPException(429, refused)
         except HTTPException as e:  # with the CORS headers, so the page can show why
             return JSONResponse({"detail": e.detail}, status_code=e.status_code, headers=allowed)
         write = PROVIDERS[s.provider]
 
+        cost: list[float] = []
+
         def stream() -> Iterator[str]:
             try:
-                yield from write(s, system, messages)
+                yield from write(s, system, messages, lambda c: cost.append(c))
             except Exception as e:  # the browser shows what went wrong; the key never appears in it
                 yield f"\n\n[report service error: {e}]"
+            finally:  # also when the visitor stops it: the answer so far was paid for
+                limiter.done(ip, sum(cost) if cost else s.fallback_cost)
 
         return StreamingResponse(stream(), media_type="text/plain; charset=utf-8", headers=allowed)
