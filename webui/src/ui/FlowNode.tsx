@@ -267,6 +267,12 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
         return (
           <div className="ai">
             <div className="row">
+              <select className="select" value={String(data.params.engine ?? 'auto')} onChange={(e) => studio.setParams(id, { engine: e.target.value })}
+                      title="Who writes the report. The lab's API gets only the numbers, through the RetiVASC server, never the photographs.">
+                <option value="auto">Lab API, else this computer</option>
+                <option value="online">Lab API only</option>
+                <option value="local">This computer only</option>
+              </select>
               <select className="select" value={String(data.params.language ?? 'en')} onChange={(e) => studio.setParams(id, { language: e.target.value })} title="Language of the report">
                 <option value="en">English</option>
                 <option value="zh">中文</option>
@@ -277,9 +283,14 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
             {text ? (
               <div className="ai-text"><Markdown text={text} /></div>
             ) : (
-              <div className="empty">Connect the steps to report on, then Run. The first report downloads the language model once (1.4 GB); after a folder, it writes one report on all photos.</div>
+              <div className="empty">Connect the steps to report on, then Run. After a folder, it writes one report on all photos.</div>
             )}
-            {v && <div className="meta">{v.model} on this computer · {v.result.tokensPerSecond.toFixed(0)} tokens/s{v.unchecked.length || v.judged.length ? ' · see the checks' : ' · numbers checked'}</div>}
+            {v && (
+              <div className="meta">
+                {v.writer === 'online' ? `${v.model} · the lab’s API` : `${v.model} on this computer · ${v.result?.tokensPerSecond.toFixed(0)} tokens/s`}
+                {v.unchecked.length || v.judged.length ? ' · see the checks' : ' · numbers checked'}
+              </div>
+            )}
           </div>
         );
       }

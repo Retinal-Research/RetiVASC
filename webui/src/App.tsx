@@ -35,6 +35,7 @@ import { useFolderRun } from './ui/FolderPanel';
 import { api } from './server/api';
 import { exposeTestHooks } from './testHooks';
 import { llm } from './llm/llm';
+import { onlineStatus, stopWriting } from './engine/report';
 import type { LlmManifest, LlmStatus } from './llm/protocol';
 import { Grip } from './ui/Grip';
 import { isNum, useRemembered } from './remember';
@@ -114,6 +115,8 @@ export function App() {
   // the language model of the AI report step: null when this site has none
   const [llmManifest, setLlmManifest] = useState<LlmManifest | null>();
   const [llmStatus, setLlmStatus] = useState<LlmStatus>();
+  // the lab's API, through the RetiVASC server, writes reports when this page can reach it
+  const [online, setOnline] = useState(false);
   const [samples, setSamples] = useState<Sample[]>([]);
   const [running, setRunning] = useState(false);
   const [stopping, setStopping] = useState(false);
@@ -209,6 +212,7 @@ export function App() {
     engine.ready.then((info) => { setEngineInfo(info); void refreshModels(); }, (e: Error) => setEngineError(e.message));
     loadSamples().then(setSamples, () => setSamples([]));
     void llm.manifest.then((m) => setLlmManifest(m ?? null));
+    void onlineStatus().then((st) => setOnline(st.enabled));
     load(FIRST);
   }, []);
 
@@ -378,7 +382,9 @@ export function App() {
     return [...most].filter(([key]) => engineInfo?.manifest.models[key]).map(([key, parts]) => ({ key, parts }));
   }, [nodes, engineInfo]);
 
-  const usesLlm = !!llmManifest && nodes.some((n) => SPECS[n.data.type]?.llm);
+  // the model on this computer, where a report step would use it
+  const local = (params: Record<string, unknown>) => params.engine === 'local' || (params.engine !== 'online' && !online);
+  const usesLlm = !!llmManifest && nodes.some((n) => SPECS[n.data.type]?.llm && local(n.data.params));
   useEffect(() => {
     if (usesLlm) llm.status().then(setLlmStatus, () => setLlmStatus(undefined));
   }, [usesLlm, lastRun]);
@@ -437,7 +443,7 @@ export function App() {
   // a pipeline needs every model its steps use; until the engine has started, assume they are there
   const missing = (wf: WorkflowFile) =>
     (!!engineInfo && wf.nodes.some((n) => { const m = SPECS[n.type]?.model; return !!m && !engineInfo.manifest.models[m]; }))
-    || (llmManifest === null && wf.nodes.some((n) => SPECS[n.type]?.llm));
+    || (llmManifest === null && !online && wf.nodes.some((n) => SPECS[n.type]?.llm));
 
   if (view === 'home') {
     return (
@@ -449,7 +455,7 @@ export function App() {
   return (
     <StudioContext.Provider value={studio}>
       <div className="app" style={{ '--inspector-w': `${inspectorW}px` } as CSSProperties}>
-        <TopBar name={name} engine={engineInfo} engineError={engineError} gpu={gpu} onGpu={switchGpu} preload={preloadState} onPreload={() => void preload()} running={running} stopping={stopping} lastRun={lastRun} onRun={() => void run()} onStop={() => { setStopping(true); executor.stop(); llm.stop(); }} onSave={save} onOpen={(f) => void open(f)} appearance={appearance} theme={theme} onAppearance={setAppearance} account={account} onSignOut={() => void api.logout().finally(() => setAccount({ mode: 'signin' }))} onHome={() => go('home')} />
+        <TopBar name={name} engine={engineInfo} engineError={engineError} gpu={gpu} onGpu={switchGpu} preload={preloadState} onPreload={() => void preload()} running={running} stopping={stopping} lastRun={lastRun} onRun={() => void run()} onStop={() => { setStopping(true); executor.stop(); stopWriting(); }} onSave={save} onOpen={(f) => void open(f)} appearance={appearance} theme={theme} onAppearance={setAppearance} account={account} onSignOut={() => void api.logout().finally(() => setAccount({ mode: 'signin' }))} onHome={() => go('home')} />
         <Sidebar current={name} onLoad={(wf) => load(wf)} onAdd={(t) => addNode(t)} server={account.mode === 'ready'} />
         <main className="canvas" onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} onDrop={onDrop}>
           <ReactFlow<StudioNode, Edge>

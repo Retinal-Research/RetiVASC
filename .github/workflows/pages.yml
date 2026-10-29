@@ -9,6 +9,8 @@
 # says the enhancement is not installed, and the other pipelines work. The AI report's language model
 # (Qwen3-1.7B, Apache-2.0) loads from onnx-community on Hugging Face at a fixed revision (RETIVASC_LLM_URL
 # overrides it); it is downloaded only when a report is written.
+# RETIVASC_REPORT_URL points the AI report at the lab's report service (a RetiVASC server reached through
+# a Cloudflare tunnel, which keeps the API key); without it, reports are written on the visitor's computer.
 name: pages
 on:
   push:
@@ -42,6 +44,7 @@ jobs:
           VITE_MODELS_URL: ${{ vars.RETIVASC_MODELS_URL }}
           VITE_VASCX_URL: ${{ vars.RETIVASC_VASCX_URL || 'https://huggingface.co/Eyened/vascx/resolve/383bcf530510a7c8d7ad7bc34ec23f48c87ce29d/' }}
           VITE_TPOT_URL: ${{ vars.RETIVASC_TPOT_URL }}
+          VITE_REPORT_URL: ${{ vars.RETIVASC_REPORT_URL }}
           VITE_LLM_URL: ${{ vars.RETIVASC_LLM_URL || 'https://huggingface.co/onnx-community/Qwen3-1.7B-ONNX/resolve/3231b522c6e703b2f9b3cd8ea27426a1289a02f2/' }}
         run: |
           npm ci

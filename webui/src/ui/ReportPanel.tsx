@@ -2,9 +2,8 @@
 // model that wrote it. Everything here runs on this computer.
 
 import { useState } from 'react';
-import { factsText } from '../engine/facts';
-import { askReport, type ReportValue } from '../engine/report';
-import { llm } from '../llm/llm';
+import { factsText } from '../engine/prompt';
+import { askReport, stopWriting, type ReportValue } from '../engine/report';
 import { ms } from './format';
 import { Markdown } from './Markdown';
 
@@ -70,7 +69,7 @@ export function ReportView({ value, workflow }: { value: ReportValue; workflow: 
       <div className="report-tools">
         <button className="btn small" onClick={() => void navigator.clipboard?.writeText(markdown())}>Copy</button>
         <button className="btn small" onClick={() => download(`${workflow.replace(/[^\w-]+/g, '_')}_report.md`, markdown())}>Download .md</button>
-        {r.cut && <span className="hint">Stopped before the end</span>}
+        {value.cut && <span className="hint">Stopped before the end</span>}
       </div>
       <Markdown text={value.text} />
       <Checks unchecked={value.unchecked} judged={value.judged} />
@@ -96,7 +95,7 @@ export function ReportView({ value, workflow }: { value: ReportValue; workflow: 
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void ask(); } }} />
           {answering === undefined
             ? <button className="btn small" disabled={!question.trim()} onClick={() => void ask()}>Ask</button>
-            : <button className="btn small danger" onClick={() => llm.stop()}><span className="stopsq" />Stop</button>}
+            : <button className="btn small danger" onClick={() => stopWriting()}><span className="stopsq" />Stop</button>}
         </div>
         {error && <p className="error">{error}</p>}
       </section>
@@ -118,11 +117,20 @@ export function ReportView({ value, workflow }: { value: ReportValue; workflow: 
       <section className="isec">
         <h3>Model</h3>
         <dl className="rows">
-          <div className="kv"><dt>Language model</dt><dd>{value.model}, on this computer</dd></div>
-          <div className="kv"><dt>Ran on</dt><dd>{r.backend === 'webgpu' ? 'GPU (WebGPU)' : 'CPU (WebAssembly)'}</dd></div>
-          <div className="kv"><dt>Read</dt><dd>{r.promptTokens} tokens{r.reusedTokens ? ` (${r.reusedTokens} already read)` : ''} in {ms(r.readMs)}</dd></div>
-          <div className="kv"><dt>Wrote</dt><dd>{r.newTokens} tokens, {r.tokensPerSecond.toFixed(1)} per second</dd></div>
-          <div className="kv"><dt>Time</dt><dd>{ms(r.ms)}</dd></div>
+          {value.writer === 'online' ? (
+            <>
+              <div className="kv"><dt>Language model</dt><dd>{value.model}, the lab’s API</dd></div>
+              <div className="kv"><dt>Sent</dt><dd>the numbers below, through the RetiVASC server; no photographs</dd></div>
+            </>
+          ) : r && (
+            <>
+              <div className="kv"><dt>Language model</dt><dd>{value.model}, on this computer</dd></div>
+              <div className="kv"><dt>Ran on</dt><dd>{r.backend === 'webgpu' ? 'GPU (WebGPU)' : 'CPU (WebAssembly)'}</dd></div>
+              <div className="kv"><dt>Read</dt><dd>{r.promptTokens} tokens{r.reusedTokens ? ` (${r.reusedTokens} already read)` : ''} in {ms(r.readMs)}</dd></div>
+              <div className="kv"><dt>Wrote</dt><dd>{r.newTokens} tokens, {r.tokensPerSecond.toFixed(1)} per second</dd></div>
+            </>
+          )}
+          <div className="kv"><dt>Time</dt><dd>{ms(value.ms)}</dd></div>
         </dl>
       </section>
       <p className="footnote">

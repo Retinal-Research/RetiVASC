@@ -7,6 +7,7 @@
 import { QUALITY_CLASSES } from '../automorph/types';
 import type { PhotoRecord } from './folder';
 import { GROUP_LABEL, SPECS } from './specs';
+import PROMPTS from './prompts.json';
 import { measures } from './summary';
 import type { M0Value, NodeValue } from './values';
 
@@ -40,32 +41,8 @@ export interface Cohort {
   sources: Array<{ id: string; type: string }>;
 }
 
-export const TERMS = {
-  quality: T("Image quality: AutoMorph's quality model grades a photo Good, Usable or Reject. AutoMorph measures vessels only on gradable photos: Good, or Usable with a probability of Reject below 0.25.",
-    '图像质量：AutoMorph 的质量模型把照片分为“好”（Good）、“可用”（Usable）和“不合格”（Reject）。AutoMorph 只在可分析的照片上测量血管：等级为“好”，或等级为“可用”且“不合格”的概率低于 0.25。'),
-  enhanced: T("Enhancement: TPOT is the lab's enhancement of fundus photographs; values marked as measured on the enhanced photograph were made after it.",
-    '增强：TPOT 是实验室的眼底照片增强方法；标明“在增强后的照片上测量”的数值是增强之后测得的。'),
-  share: T('Share of the field of view: the fraction of the circular photograph covered by the vessels, arteries, veins or optic disc that a segmentation found.',
-    '占视野比例：分割出的血管、动脉、静脉或视盘覆盖圆形照片面积的比例。'),
-  fovea: T('Fovea position: the centre of the macula, in pixels of the photograph.', '黄斑中心凹位置：黄斑的中心，单位是照片的像素。'),
-  cdr: T('Cup-to-disc ratio (CDR): the size of the optic cup relative to the optic disc.', '杯盘比（CDR）：视杯相对于视盘的大小。'),
-  fractal: T('Fractal dimension: how completely and intricately the vessels branch; higher means a more complex network.',
-    '分形维数：血管分支的完整和复杂程度；数值越大，血管网络越复杂。'),
-  density: T('Vessel density: the fraction of the image covered by vessels.', '血管密度：血管覆盖图像的比例。'),
-  width: T('Average width: the mean calibre of the vessels, in micrometres.', '平均管径：血管的平均粗细，单位是微米（µm）。'),
-  tortuosity: T('Distance tortuosity: how much the vessels bend away from straight lines; higher means more tortuous.',
-    '距离迂曲度：血管偏离直线的程度；数值越大，血管越弯曲。'),
-  caliber: T('CRAE and CRVE: central retinal arteriolar and venular equivalents, a summary of the calibre of the largest arterioles and venules around the optic disc (Knudtson formula), in micrometres.',
-    'CRAE 和 CRVE：视网膜中央小动脉和小静脉等效管径，概括视盘周围最粗的几支小动脉和小静脉的管径（Knudtson 公式），单位是微米（µm）。'),
-  avr: T('AVR: arteriole-to-venule ratio, CRAE divided by CRVE. Arterioles are narrower than venules, so it is usually below 1.',
-    'AVR：动静脉比，即 CRAE 除以 CRVE。小动脉比小静脉细，所以通常小于 1。'),
-  zones: T('Zone B is the ring from 2 to 3 disc radii around the centre of the optic disc; Zone C is from 2 to 5 disc radii.',
-    'B 区是以视盘中心为圆心、2 到 3 个视盘半径之间的环形区域；C 区是 2 到 5 个视盘半径之间。'),
-  microns: T("Micrometre values use AutoMorph's standard scale for a field of view; compare them only between photos from the same kind of camera.",
-    '微米数值按 AutoMorph 对视野的标准比例换算，只能在同一类相机拍的照片之间比较。'),
-  statistics: T('Folder statistics: n is the number of photos with a value; SD the standard deviation; for two steps that measure the same thing, the difference is the second minus the first, photo by photo.',
-    '文件夹统计：n 是有该数值的照片数；标准差即 SD；两个步骤测量同一项时，差值是逐张照片的后者减前者。'),
-} as const;
+/** Definitions the model is given for the rows it gets (shared with the server: prompts.json). */
+export const TERMS: Record<keyof typeof PROMPTS.terms, Text> = PROMPTS.terms;
 
 /** The AutoMorph M3 columns a report is about: [column, name, unit, term]. A small model given all
  *  72 values lists them instead of writing about them; all 72 stay on the M3 step and in the CSV. */
@@ -307,19 +284,4 @@ export function folderFacts(c: Cohort, l: Language): FactSheet {
   }
   if (rows.length) groups.push({ title: zh ? '步骤之间的比较' : 'Comparison between steps', rows });
   return { scope: 'folder', language: l, groups: groups.filter((g) => g.rows.length), terms: [...terms] };
-}
-
-/** Whether a folder sheet compares two steps (its last group). */
-export const compares = (sheet: FactSheet) => sheet.groups.some((g) => g.title === 'Comparison between steps' || g.title === '步骤之间的比较');
-
-// ---------------------------------------------------------------- as text for the model
-
-export function factsText(sheet: FactSheet): string {
-  const colon = sheet.language === 'zh' ? '：' : ':';
-  return sheet.groups.map((g) => [`${g.title}${g.note ? (sheet.language === 'zh' ? `（${g.note}）` : ` (${g.note})`) : ''}${colon}`,
-    ...g.rows.map(([k, v]) => `- ${k}${colon}${sheet.language === 'zh' ? '' : ' '}${v}`)].join('\n')).join('\n\n');
-}
-
-export function termsText(sheet: FactSheet): string {
-  return sheet.terms.map((t) => `- ${TERMS[t][sheet.language]}`).join('\n');
 }

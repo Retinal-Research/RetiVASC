@@ -302,13 +302,13 @@ const specs: NodeSpec[] = [
   {
     type: 'ai.report',
     title: 'AI report',
-    subtitle: 'A language model on this computer writes up the results',
+    subtitle: 'A language model writes up the results: the lab’s API, or this computer',
     group: 'ai',
     llm: true,
     cohort: true,
     inputs: [{ id: 'results', label: 'results of any steps', type: 'any', multi: true }],
     outputs: [{ id: 'report', label: 'report', type: 'report' }],
-    defaults: { language: 'en', focus: '' },
+    defaults: { engine: 'auto', language: 'en', focus: '' },
     run: aiReport,
   },
   {

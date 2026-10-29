@@ -8,5 +8,19 @@
     "retention_days": 30,
     "device": "auto",
     "allowed_folders": []
+  },
+  "report": {
+    "enabled": false,
+    "provider": "asu",
+    "url": "",
+    "model": "",
+    "key_env": "RETIVASC_REPORT_KEY",
+    "key_file": "",
+    "origins": ["https://retinal-research.github.io"],
+    "window_seconds": 60,
+    "per_window": 3,
+    "per_ip_per_day": 30,
+    "per_day": 500,
+    "max_tokens": 1500
   }
 }

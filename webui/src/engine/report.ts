@@ -1,15 +1,69 @@
 // The AI report step: the results of the steps connected to it (or, after a folder run, of every
-// photo) become a fact sheet (engine/facts.ts), and the language model on this computer writes it
-// up. Every number in the text is then looked up in the sheet; any it cannot find is shown.
+// photo) become a fact sheet (engine/facts.ts), and a language model writes it up: the lab's, through
+// the RetiVASC server (which keeps the API key and sees only the sheet), or the small one on this
+// computer. Every number in the text is then looked up in the sheet; any it cannot find is shown.
 
 import { llm } from '../llm/llm';
 import type { ChatResult } from '../llm/protocol';
-import { compares, factsText, folderFacts, photoFacts, termsText, type Cohort, type FactSheet, type Language, type Source } from './facts';
+import { folderFacts, photoFacts, type Cohort, type FactSheet, type Language, type Source } from './facts';
 import { hash } from './folder';
+import { questionPrompt, reportPrompt, SYSTEM } from './prompt';
+
+export { reportPrompt, SYSTEM };
 import type { RunContext } from './specs';
 import type { NodeValue } from './values';
 
 export type { Language };
+
+/** Who writes: the lab's API when this page can reach it (auto), only the lab's API, or this computer. */
+export type Writer = 'auto' | 'online' | 'local';
+
+// the report service: on the RetiVASC server next to the page, or where VITE_REPORT_URL says (the public site)
+const REPORT_URL = import.meta.env.VITE_REPORT_URL || `${import.meta.env.BASE_URL}api/report`;
+let service: Promise<{ enabled: boolean; model: string }> | undefined;
+
+/** Whether the lab's API can write reports for this page. */
+export function onlineStatus(): Promise<{ enabled: boolean; model: string }> {
+  service ??= fetch(REPORT_URL, { cache: 'no-store' })
+    .then((r) => (r.ok ? (r.json() as Promise<{ enabled: boolean; model: string }>) : { enabled: false, model: '' }), () => ({ enabled: false, model: '' }));
+  return service;
+}
+
+let writing: AbortController | undefined;
+
+/** Stop a report or an answer being written, by either model; the text so far is kept. */
+export function stopWriting() {
+  writing?.abort();
+  llm.stop();
+}
+
+/** The report service's answer as it arrives. */
+async function online(body: object, onText: (text: string) => void): Promise<{ text: string; cut: boolean }> {
+  writing = new AbortController();
+  let text = '', cut = false;
+  try {
+    const r = await fetch(REPORT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: writing.signal });
+    if (!r.ok || !r.body) {
+      const detail = await r.json().then((j: { detail?: string }) => j.detail, () => undefined);
+      throw new Error(detail ?? `the report service answered ${r.status}`);
+    }
+    const reader = r.body.getReader(), decoder = new TextDecoder();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      text += decoder.decode(value, { stream: true });
+      onText(text);
+    }
+  } catch (error) {
+    if (!(error instanceof DOMException && error.name === 'AbortError')) throw error;
+    cut = true;
+  } finally {
+    writing = undefined;
+  }
+  const failed = /\n*\[report service error: ([^\]]*)\]\s*$/.exec(text);
+  if (failed) throw new Error(`the lab's API: ${failed[1]}`);
+  return { text, cut };
+}
 
 export interface ReportValue {
   kind: 'report';
@@ -18,69 +72,23 @@ export interface ReportValue {
   language: Language;
   /** the conversation, for follow-up questions */
   chat: string;
+  /** what the report was asked to pay attention to */
+  focus: string;
+  /** who wrote it: the lab's API through the RetiVASC server, or the model on this computer */
+  writer: 'online' | 'local';
   model: string;
   license: string;
-  result: ChatResult;
+  /** the local model's speed and token counts */
+  result?: ChatResult;
+  ms: number;
+  /** Stop was pressed before the end */
+  cut: boolean;
   /** numbers in the text that are not in the fact sheet */
   unchecked: string[];
   /** words that judge a value (high, normal…), which no reference range supports */
   judged: string[];
   /** follow-up questions and their answers, in order */
   qa: Array<{ q: string; a: string; unchecked: string[]; judged: string[] }>;
-}
-
-export const SYSTEM: Record<Language, string> = {
-  en: `You write the reports of RetiVASC, a research platform that measures the retinal blood vessels in colour fundus photographs, for researchers and clinicians.
-Rules:
-- Use only the results you are given. Never invent numbers, normal ranges, risks or diagnoses.
-- Copy numbers exactly as they are written in the results, with their units.
-- No reference ranges are given, so never call a value high, low, normal or abnormal.
-- These measurements are research markers, not a diagnosis. Do not give medical advice.
-- When image quality is poor or a value is missing, say what that means for the results.
-- Be concise and factual.`,
-  zh: `你为 RetiVASC 撰写报告。RetiVASC 是测量彩色眼底照片中视网膜血管的研究平台，读者是研究人员和临床医生。
-规则：
-- 只使用给出的结果。绝不编造数字、正常范围、风险或诊断。
-- 数字按结果中的写法原样抄写，带上单位。
-- 没有给出参考范围，所以绝不说某个数值偏高、偏低、正常或异常。
-- 这些测量是研究指标，不是诊断。不要给医疗建议。
-- 图像质量差或缺少数值时，说明这对结果意味着什么。
-- 简洁、客观。全部用简体中文书写，术语用结果中的中文名称。`,
-};
-
-const SECTIONS: Record<FactSheet['scope'], Record<Language, string[]>> = {
-  photo: { en: ['Summary', 'Image quality', 'Vessels', 'Notes'], zh: ['概要', '图像质量', '血管', '说明'] },
-  folder: { en: ['Summary', 'Image quality', 'Measurements across the folder', 'Comparison between steps', 'Notes'], zh: ['概要', '图像质量', '整个文件夹的测量', '步骤之间的比较', '说明'] },
-};
-
-const GUIDE: Record<FactSheet['scope'], Record<Language, string>> = {
-  photo: {
-    en: 'Use short bullet points. The summary is two or three bullets: the image quality, then the vessel values you find most informative, with their numbers. In the vessels section, group the values by calibre, complexity and density, and tortuosity.',
-    zh: '使用简短的要点。概要两三条：图像质量，以及你认为最有信息量的血管数值（带上数字）。血管部分按管径、复杂度和密度、迂曲度分组。',
-  },
-  folder: {
-    en: 'Use short bullet points. The summary gives how many photographs were analysed and their quality; then the measurements, grouped; then the comparison between steps, if there is one.',
-    zh: '使用简短的要点。概要写分析了多少张照片及其质量；然后按类别写测量结果；如果有步骤之间的比较，再写比较。',
-  },
-};
-
-export function reportPrompt(sheet: FactSheet, focus: string): string {
-  const l = sheet.language, zh = l === 'zh';
-  const sections = SECTIONS[sheet.scope][l].filter((_, i) => sheet.scope === 'photo' || i !== 3 || compares(sheet));
-  const what = sheet.scope === 'photo' ? (zh ? '一张照片的结果' : 'Results for one photograph') : (zh ? '一个文件夹中照片的结果' : 'Results for a folder of photographs');
-  return [
-    `${what}${zh ? '：' : ':'}`,
-    factsText(sheet),
-    '',
-    zh ? '定义：' : 'Definitions:',
-    termsText(sheet),
-    '',
-    zh
-      ? `请写一份 Markdown 格式的报告，包含这些小节：${sections.map((x) => `“## ${x}”`).join('、')}。`
-      : `Write a report in English, in Markdown, with these sections: ${sections.map((x) => `"## ${x}"`).join(', ')}.`,
-    GUIDE[sheet.scope][l],
-    focus ? (zh ? `特别关注：${focus}` : `Pay particular attention to: ${focus}`) : '',
-  ].join('\n').trim();
 }
 
 /** Numbers as written: 0.673, 151.27, 8.1%, 1,234; years, list markers and zone letters are not numbers here. */
@@ -129,22 +137,39 @@ export async function aiReport(ctx: RunContext): Promise<Record<string, NodeValu
   }
   const user = reportPrompt(sheet, focus);
   const chat = `report:${hash(SYSTEM[language] + user)}`;
+  const choice = (ctx.params.engine as Writer | undefined) ?? 'auto';
+  const status = choice === 'local' ? undefined : await onlineStatus();
+  if (choice === 'online' && !status?.enabled) throw new Error('the lab’s API cannot be reached from this page; choose “This computer”');
+  const checks = (text: string) => ({ unchecked: uncheckedNumbers(text, user), judged: judgements(text, language) });
+  if (status?.enabled) {
+    const t = performance.now();
+    const r = await online({ facts: sheet, focus }, (text) => ctx.progress({ stage: 'llm', message: 'The lab’s API is writing the report', text }));
+    const text = r.text.trim();
+    return { report: { kind: 'report', text, facts: sheet, language, chat, focus, writer: 'online', model: status.model || 'the lab’s API', license: '',
+      ms: performance.now() - t, cut: r.cut, ...checks(text), qa: [] } };
+  }
   const manifest = await llm.manifest;
   let text = '';
   const result = await llm.chat({ chat, system: SYSTEM[language], user, maxTokens: sheet.scope === 'folder' ? 1100 : 900, temperature: 0.3 },
     (delta) => { text += delta; ctx.progress({ stage: 'llm', message: 'Writing the report', text: clean(text) }); }, ctx.progress);
   const final = clean(result.text);
   return {
-    report: { kind: 'report', text: final, facts: sheet, language, chat, model: manifest?.name ?? 'language model', license: manifest?.license ?? '', result,
-      unchecked: uncheckedNumbers(final, user), judged: judgements(final, language), qa: [] },
+    report: { kind: 'report', text: final, facts: sheet, language, chat, focus, writer: 'local', model: manifest?.name ?? 'language model',
+      license: manifest?.license ?? '', result, ms: result.ms, cut: result.cut, ...checks(final), qa: [] },
   };
 }
 
 /** A follow-up question about a report; the answer arrives piece by piece. */
 export async function askReport(report: ReportValue, question: string, onText: (text: string) => void): Promise<{ a: string; unchecked: string[]; judged: string[] }> {
-  let text = '';
-  const user = report.language === 'zh' ? `${question}\n\n请用简体中文简短回答，只依据上面的结果。` : `${question}\n\nAnswer in English, briefly, from the results above only.`;
-  const result = await llm.chat({ chat: report.chat, user, maxTokens: 450, temperature: 0.3 }, (delta) => { text += delta; onText(clean(text)); });
-  const a = clean(result.text);
+  let a: string;
+  if (report.writer === 'online') {
+    const history = report.qa.map(({ q, a: answer }) => ({ q, a: answer }));
+    a = (await online({ facts: report.facts, focus: report.focus, report: report.text, history, question }, onText)).text.trim();
+  } else {
+    let text = '';
+    const result = await llm.chat({ chat: report.chat, user: questionPrompt(question, report.language), maxTokens: 450, temperature: 0.3 },
+      (delta) => { text += delta; onText(clean(text)); });
+    a = clean(result.text);
+  }
   return { a, unchecked: uncheckedNumbers(a, `${reportPrompt(report.facts, '')}\n${report.text}`), judged: judgements(a, report.language) };
 }

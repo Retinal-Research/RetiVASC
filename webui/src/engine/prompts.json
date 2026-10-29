@@ -1,0 +1,133 @@
+{
+  "_note": "The AI report's instructions, shared by the browser (src/engine/report.ts) and the RetiVASC server (retivasc_server/report.py), so both ask the same thing.",
+  "system": {
+    "en": "You write the reports of RetiVASC, a research platform that measures the retinal blood vessels in colour fundus photographs, for researchers and clinicians.\nRules:\n- Use only the results you are given. Never invent numbers, normal ranges, risks or diagnoses.\n- Copy numbers exactly as they are written in the results, with their units.\n- No reference ranges are given, so never call a value high, low, normal or abnormal.\n- These measurements are research markers, not a diagnosis. Do not give medical advice.\n- When image quality is poor or a value is missing, say what that means for the results.\n- Be concise and factual.",
+    "zh": "你为 RetiVASC 撰写报告。RetiVASC 是测量彩色眼底照片中视网膜血管的研究平台，读者是研究人员和临床医生。\n规则：\n- 只使用给出的结果。绝不编造数字、正常范围、风险或诊断。\n- 数字按结果中的写法原样抄写，带上单位。\n- 没有给出参考范围，所以绝不说某个数值偏高、偏低、正常或异常。\n- 这些测量是研究指标，不是诊断。不要给医疗建议。\n- 图像质量差或缺少数值时，说明这对结果意味着什么。\n- 简洁、客观。全部用简体中文书写，术语用结果中的中文名称。"
+  },
+  "sections": {
+    "photo": {
+      "en": [
+        "Summary",
+        "Image quality",
+        "Vessels",
+        "Notes"
+      ],
+      "zh": [
+        "概要",
+        "图像质量",
+        "血管",
+        "说明"
+      ]
+    },
+    "folder": {
+      "en": [
+        "Summary",
+        "Image quality",
+        "Measurements across the folder",
+        "Comparison between steps",
+        "Notes"
+      ],
+      "zh": [
+        "概要",
+        "图像质量",
+        "整个文件夹的测量",
+        "步骤之间的比较",
+        "说明"
+      ]
+    }
+  },
+  "guide": {
+    "photo": {
+      "en": "Use short bullet points. The summary is two or three bullets: the image quality, then the vessel values you find most informative, with their numbers. In the vessels section, group the values by calibre, complexity and density, and tortuosity.",
+      "zh": "使用简短的要点。概要两三条：图像质量，以及你认为最有信息量的血管数值（带上数字）。血管部分按管径、复杂度和密度、迂曲度分组。"
+    },
+    "folder": {
+      "en": "Use short bullet points. The summary gives how many photographs were analysed and their quality; then the measurements, grouped; then the comparison between steps, if there is one.",
+      "zh": "使用简短的要点。概要写分析了多少张照片及其质量；然后按类别写测量结果；如果有步骤之间的比较，再写比较。"
+    }
+  },
+  "terms": {
+    "quality": {
+      "en": "Image quality: AutoMorph's quality model grades a photo Good, Usable or Reject. AutoMorph measures vessels only on gradable photos: Good, or Usable with a probability of Reject below 0.25.",
+      "zh": "图像质量：AutoMorph 的质量模型把照片分为“好”（Good）、“可用”（Usable）和“不合格”（Reject）。AutoMorph 只在可分析的照片上测量血管：等级为“好”，或等级为“可用”且“不合格”的概率低于 0.25。"
+    },
+    "enhanced": {
+      "en": "Enhancement: TPOT is the lab's enhancement of fundus photographs; values marked as measured on the enhanced photograph were made after it.",
+      "zh": "增强：TPOT 是实验室的眼底照片增强方法；标明“在增强后的照片上测量”的数值是增强之后测得的。"
+    },
+    "share": {
+      "en": "Share of the field of view: the fraction of the circular photograph covered by the vessels, arteries, veins or optic disc that a segmentation found.",
+      "zh": "占视野比例：分割出的血管、动脉、静脉或视盘覆盖圆形照片面积的比例。"
+    },
+    "fovea": {
+      "en": "Fovea position: the centre of the macula, in pixels of the photograph.",
+      "zh": "黄斑中心凹位置：黄斑的中心，单位是照片的像素。"
+    },
+    "cdr": {
+      "en": "Cup-to-disc ratio (CDR): the size of the optic cup relative to the optic disc.",
+      "zh": "杯盘比（CDR）：视杯相对于视盘的大小。"
+    },
+    "fractal": {
+      "en": "Fractal dimension: how completely and intricately the vessels branch; higher means a more complex network.",
+      "zh": "分形维数：血管分支的完整和复杂程度；数值越大，血管网络越复杂。"
+    },
+    "density": {
+      "en": "Vessel density: the fraction of the image covered by vessels.",
+      "zh": "血管密度：血管覆盖图像的比例。"
+    },
+    "width": {
+      "en": "Average width: the mean calibre of the vessels, in micrometres.",
+      "zh": "平均管径：血管的平均粗细，单位是微米（µm）。"
+    },
+    "tortuosity": {
+      "en": "Distance tortuosity: how much the vessels bend away from straight lines; higher means more tortuous.",
+      "zh": "距离迂曲度：血管偏离直线的程度；数值越大，血管越弯曲。"
+    },
+    "caliber": {
+      "en": "CRAE and CRVE: central retinal arteriolar and venular equivalents, a summary of the calibre of the largest arterioles and venules around the optic disc (Knudtson formula), in micrometres.",
+      "zh": "CRAE 和 CRVE：视网膜中央小动脉和小静脉等效管径，概括视盘周围最粗的几支小动脉和小静脉的管径（Knudtson 公式），单位是微米（µm）。"
+    },
+    "avr": {
+      "en": "AVR: arteriole-to-venule ratio, CRAE divided by CRVE. Arterioles are narrower than venules, so it is usually below 1.",
+      "zh": "AVR：动静脉比，即 CRAE 除以 CRVE。小动脉比小静脉细，所以通常小于 1。"
+    },
+    "zones": {
+      "en": "Zone B is the ring from 2 to 3 disc radii around the centre of the optic disc; Zone C is from 2 to 5 disc radii.",
+      "zh": "B 区是以视盘中心为圆心、2 到 3 个视盘半径之间的环形区域；C 区是 2 到 5 个视盘半径之间。"
+    },
+    "microns": {
+      "en": "Micrometre values use AutoMorph's standard scale for a field of view; compare them only between photos from the same kind of camera.",
+      "zh": "微米数值按 AutoMorph 对视野的标准比例换算，只能在同一类相机拍的照片之间比较。"
+    },
+    "statistics": {
+      "en": "Folder statistics: n is the number of photos with a value; SD the standard deviation; for two steps that measure the same thing, the difference is the second minus the first, photo by photo.",
+      "zh": "文件夹统计：n 是有该数值的照片数；标准差即 SD；两个步骤测量同一项时，差值是逐张照片的后者减前者。"
+    }
+  },
+  "results": {
+    "photo": {
+      "en": "Results for one photograph",
+      "zh": "一张照片的结果"
+    },
+    "folder": {
+      "en": "Results for a folder of photographs",
+      "zh": "一个文件夹中照片的结果"
+    }
+  },
+  "definitions": {
+    "en": "Definitions",
+    "zh": "定义"
+  },
+  "write": {
+    "en": "Write a report in English, in Markdown, with these sections: {sections}.",
+    "zh": "请写一份 Markdown 格式的报告，包含这些小节：{sections}。"
+  },
+  "focus": {
+    "en": "Pay particular attention to: {focus}",
+    "zh": "特别关注：{focus}"
+  },
+  "question": {
+    "en": "{question}\n\nAnswer in English, briefly, from the results above only.",
+    "zh": "{question}\n\n请用简体中文简短回答，只依据上面的结果。"
+  }
+}
