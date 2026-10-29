@@ -29,7 +29,8 @@ let summary = await page.evaluate(() => window.__studio.run());
 let r = await page.evaluate(() => window.__studio.result('report'));
 ok(summary.errors === 0 && r?.kind === 'report', `RetiVASC pipeline with the AI report: ${((Date.now() - t) / 1000).toFixed(1)} s, ${summary.ran} steps`);
 show(r.text);
-ok(/##/.test(r.text) && r.text.length > 300, `report has sections (${r.text.length} characters, ${r.result.newTokens} tokens at ${r.result.tokensPerSecond.toFixed(1)}/s)`);
+const by = (x) => (x.writer === 'online' ? `${x.model} through the lab's gateway, ${(x.ms / 1000).toFixed(1)} s` : `${x.model} on this computer, ${x.result.newTokens} tokens at ${x.result.tokensPerSecond.toFixed(1)}/s`);
+ok(/##/.test(r.text) && r.text.length > 300, `report has sections (${r.text.length} characters; ${by(r)})`);
 ok(r.facts.length >= 2, `it was given ${r.facts.length} groups of numbers: ${r.facts.map((g) => g.title).join('; ')}`);
 console.log(`     numbers not found in the results: ${r.unchecked.length ? r.unchecked.join(', ') : 'none'}; judging words: ${r.judged.length ? r.judged.join(', ') : 'none'}`);
 

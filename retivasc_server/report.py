@@ -35,10 +35,10 @@ SCOPES = ("photo", "folder")
 @dataclass
 class ReportSettings:
     enabled: bool = False
-    provider: str = "asu"  # "fake" writes a canned report, for tests
+    provider: str = "gateway"  # the lab's LLM gateway (lab-llm); "fake" writes a canned report, for tests
     url: str = ""
     model: str = ""
-    key_env: str = "RETIVASC_REPORT_KEY"
+    key_env: str = "RETIVASC_REPORT_KEY"  # RetiVASC's app key for the gateway, or key_file
     key_file: str = ""
     # pages that may call it from another origin (the public site, a dev server)
     origins: list[str] = field(default_factory=lambda: ["https://retinal-research.github.io"])
@@ -46,7 +46,7 @@ class ReportSettings:
     per_window: int = 3
     per_ip_per_day: int = 30
     per_day: int = 500  # all IPs together
-    max_tokens: int = 1500
+    max_tokens: int = 4000  # reasoning models count their thinking here too
     timeout: float = 120
 
     def key(self) -> str:
@@ -200,12 +200,35 @@ def fake(s: ReportSettings, system: str, messages: list[dict]) -> Iterator[str]:
         yield text[i:i + 20]
 
 
-def asu(s: ReportSettings, system: str, messages: list[dict]) -> Iterator[str]:
-    """ASU's language-model API. Filled in when its interface is known."""
-    raise RuntimeError("the ASU API is not connected yet")
+def gateway(s: ReportSettings, system: str, messages: list[dict]) -> Iterator[str]:
+    """The lab's LLM gateway on this machine (OpenAI-style chat, streamed), which holds the CreateAI token.
+    RetiVASC has only its own app key for it."""
+    import httpx
+
+    body = {"messages": [{"role": "system", "content": system}, *messages], "max_tokens": s.max_tokens, "stream": True}
+    if s.model:
+        body["model"] = s.model
+    headers = {"Authorization": f"Bearer {s.key()}", "Content-Type": "application/json"}
+    with httpx.stream("POST", f"{s.url.rstrip('/')}/chat/completions", json=body, headers=headers, timeout=s.timeout) as r:
+        if r.status_code != 200:
+            try:
+                detail = json.loads(r.read()).get("error", {}).get("message", "")
+            except ValueError:
+                detail = ""
+            raise RuntimeError(f"the language model service answered {r.status_code} {detail}".strip())
+        for line in r.iter_lines():
+            if not line.startswith("data: {"):
+                continue
+            chunk = json.loads(line[6:])
+            if chunk.get("error"):
+                raise RuntimeError(chunk["error"].get("message", "the language model service failed"))
+            for choice in chunk.get("choices") or []:
+                text = (choice.get("delta") or {}).get("content")
+                if text:
+                    yield text
 
 
-PROVIDERS = {"fake": fake, "asu": asu}
+PROVIDERS = {"fake": fake, "gateway": gateway}
 
 
 # ---------------------------------------------------------------- the endpoint

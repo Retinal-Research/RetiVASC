@@ -127,7 +127,7 @@ The server can write AI reports through the lab's language-model API for every p
 - The browser sends only its fact sheet. The server builds the prompt itself from `webui/src/engine/prompts.json`, the same as the browser's (`webui/tests/prompt.ts` and `retivasc_server/tests/test_report.py` hold both to `webui/tests/prompt_fixture.json`), so the endpoint cannot be used for anything but RetiVASC reports. Nothing is stored.
 - For the public site, expose only `/api/report` of this server through the Cloudflare tunnel (a public hostname in the Cloudflare dashboard with path `^/api/report`), and build the site with the repository variable `RETIVASC_REPORT_URL` set to `https://<that hostname>/api/report`. Behind the tunnel, limits count the visitor's address (`CF-Connecting-IP`).
 - The node's writer setting: `auto` uses the lab's API when the page can reach it and the model on the visitor's computer otherwise; `online` or `local` force one.
-- `provider: "fake"` writes a canned report, for tests only. The ASU provider is a placeholder until its interface is known.
+- `provider: "gateway"` writes through the lab's LLM gateway on the same machine (`~/Projekt/lab-llm`, `http://127.0.0.1:8095/v1`), which holds the ASU CreateAI token; RetiVASC has only its own app key (`key_file`, default `~/.config/lab-llm/apps/retivasc.key`). The default model is `openai/gpt6_luna`. `provider: "fake"` writes a canned report, for tests only.
 
 ### Opening the server to other computers
 

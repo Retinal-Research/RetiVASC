@@ -56,7 +56,7 @@ export function exposeTestHooks(h: Hooks): void {
         case 'features':
           return { kind: v.kind, features: v.result.features, centredOn: v.result.centredOn, discValid: v.result.discValid, ms: v.result.ms, gradable: v.gradable };
         case 'report':
-          return { kind: v.kind, text: v.text, unchecked: v.unchecked, judged: v.judged, scope: v.facts.scope, facts: v.facts.groups, qa: v.qa, result: v.result };
+          return { kind: v.kind, text: v.text, writer: v.writer, model: v.model, ms: v.ms, unchecked: v.unchecked, judged: v.judged, scope: v.facts.scope, facts: v.facts.groups, qa: v.qa, result: v.result };
       }
     },
   };
