@@ -26,6 +26,23 @@ export interface M0Value {
   hires?: ImageBitmap;
   /** set when a model produced the image (enhancement) */
   timing?: Timing;
+  /** the field-of-view radius in this image's pixels, when the image is not at the photo's scale (VascX: 512 of 1024);
+   *  geometry stays in the photo's pixels so measurements keep their physical scale */
+  fovRadius?: number;
+  /** what made this image, for the inspector: M0's crop, VascX's crop, or an enhancement */
+  made?: 'm0' | 'vascx' | 'enhanced';
+  /** the image before enhancement, to compare */
+  before?: ImageBitmap;
+}
+
+/** The fovea found by VascX, in the pixels of its base image. */
+export interface FoveaValue {
+  kind: 'fovea';
+  x: number;
+  y: number;
+  size: number;
+  timing: Timing;
+  base: M0Value;
 }
 
 export interface QualityValue {
@@ -109,5 +126,5 @@ export interface FeaturesValue {
   forced: boolean;
 }
 
-export type NodeValue = FundusValue | M0Value | QualityValue | VesselValue | ArteryVeinValue | DiscCupValue | RunValue | SheetValue | AnalysisValue | FeaturesValue;
+export type NodeValue = FundusValue | M0Value | QualityValue | VesselValue | ArteryVeinValue | DiscCupValue | FoveaValue | RunValue | SheetValue | AnalysisValue | FeaturesValue;
 export type PortType = NodeValue['kind'];

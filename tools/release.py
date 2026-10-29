@@ -2,6 +2,7 @@
 
   python tools/release.py fetch            download and install both packages
   python tools/release.py fetch --web      browser models only (enough for the web UI on its own)
+  python tools/release.py fetch --vascx    the VascX models, from Eyened/vascx on Hugging Face (0.56 GB)
   python tools/release.py check            verify the installed files against the checksum lists
   python tools/release.py pack             (maintainers) build the two zip files to attach to a release
 
@@ -130,6 +131,36 @@ def fetch(packages: list[str], repo: str | None) -> int:
     return 0
 
 
+VASCX_MANIFEST = ROOT / "webui" / "public" / "models" / "vascx" / "manifest.json"
+
+
+def fetch_vascx() -> int:
+    """The VascX models are not ours to repackage (CC BY-NC 4.0): fetch them from the authors'
+    Hugging Face repository, at the revision in webui/public/models/vascx/manifest.json, and check them."""
+    m = json.loads(VASCX_MANIFEST.read_text(encoding="utf-8"))
+    folder = VASCX_MANIFEST.parent
+    print(f"VascX models: {m['license']}")
+    for model in m["models"].values():
+        for part in model["parts"]:
+            dest = folder / part["file"]
+            if dest.is_file() and dest.stat().st_size == part["bytes"] and sha256(dest) == part["sha256"]:
+                continue
+            url = f"{m['source']}/resolve/{m['revision']}/{part['file']}"
+            print(f"downloading {part['file']}\n  from {url}")
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            tmp = dest.with_suffix(".part")
+            try:
+                download(url, tmp)
+            except urllib.error.HTTPError as e:
+                sys.exit(f"download failed ({e.code} {e.reason})")
+            if sha256(tmp) != part["sha256"]:
+                tmp.unlink()
+                sys.exit(f"{part['file']} does not match its checksum")
+            tmp.replace(dest)
+    print("VascX models installed and verified")
+    return 0
+
+
 def pack(out_dir: Path) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     for package, name in PACKAGES.items():
@@ -151,12 +182,15 @@ def main() -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
     q = sub.add_parser("fetch")
     q.add_argument("--web", action="store_true", help="browser models only")
+    q.add_argument("--vascx", action="store_true", help="the VascX models (from Hugging Face), only these")
     q.add_argument("--repo", help="OWNER/NAME of the GitHub repository")
     sub.add_parser("check")
     q = sub.add_parser("pack")
     q.add_argument("--out", default=str(ROOT / "release"))
     a = p.parse_args()
     if a.cmd == "fetch":
+        if a.vascx:
+            return fetch_vascx()
         return fetch(["web"] if a.web else ["web", "automorph"], a.repo)
     if a.cmd == "check":
         status = 0

@@ -23,6 +23,7 @@ import { engine } from './runtime/engine';
 import type { EngineInfo } from './runtime/protocol';
 import { StudioContext, type Studio, type StudioNodeData, type ViewSettings } from './ui/context';
 import { FlowNode, type StudioNode } from './ui/FlowNode';
+import { Home } from './ui/Home';
 import { Inspector } from './ui/Inspector';
 import { DRAG_TYPE, Sidebar } from './ui/Sidebar';
 import { TopBar } from './ui/TopBar';
@@ -39,6 +40,14 @@ const nodeTypes = { studio: FlowNode };
 const portColor = (type: PortType | undefined) => (type ? `var(--port-${type})` : 'var(--faint)');
 
 const IDLE: NodeState = { status: 'idle', version: 0 };
+
+/** The pipeline the canvas opens with: ours when it is there. */
+const FIRST = WORKFLOWS.find((w) => w.id === 'retivasc') ?? WORKFLOWS[0];
+const PIPELINES = WORKFLOWS.filter((w) => w.section === 'pipeline');
+
+/** The home page, or the canvas (#studio, so a reload stays on the canvas). */
+type View = 'home' | 'studio';
+const viewOf = (): View => (window.location.hash === '#studio' ? 'studio' : 'home');
 
 function port(nodes: StudioNode[], nodeId: string, handle: string | null | undefined, side: 'source' | 'target'): PortSpec | undefined {
   const node = nodes.find((n) => n.id === nodeId);
@@ -91,7 +100,8 @@ export function App() {
   const [samples, setSamples] = useState<Sample[]>([]);
   const [running, setRunning] = useState(false);
   const [lastRun, setLastRun] = useState<RunSummary>();
-  const [name, setName] = useState(WORKFLOWS[0].name);
+  const [name, setName] = useState(FIRST.name);
+  const [view, setViewMode] = useState<View>(viewOf);
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
   nodesRef.current = nodes;
@@ -154,7 +164,7 @@ export function App() {
   runRef.current = run;
 
   const load = useCallback(
-    (wf: WorkflowFile, autorun = true) => {
+    (wf: WorkflowFile, autorun = false) => {
       const ns = toNodes(wf);
       setNodes(ns);
       setEdges(wf.edges.map((e) => styledEdge(ns, e)));
@@ -172,18 +182,21 @@ export function App() {
   useEffect(() => {
     engine.ready.then(setEngineInfo, (e: Error) => setEngineError(e.message));
     loadSamples().then(setSamples, () => setSamples([]));
-    load(WORKFLOWS[0], false);
+    load(FIRST);
   }, []);
 
-  // the browser-only demo runs its first workflow at once; a server deployment waits for the
-  // user, so nobody downloads the browser models just by opening the page
-  const started = useRef(false);
+  // nothing runs by itself: the canvas waits for Run, so opening the page downloads no models
+  const go = useCallback((v: View) => {
+    if (v === 'studio') fitPending.current = true;  // the canvas mounts again and has to be framed
+    setViewMode(v);
+    const hash = v === 'studio' ? '#studio' : '';
+    if (window.location.hash !== hash) window.history.pushState(null, '', hash || window.location.pathname + window.location.search);
+  }, []);
   useEffect(() => {
-    if (account.mode === 'offline' && !started.current) {
-      started.current = true;
-      void run();
-    }
-  }, [account.mode, run]);
+    const back = () => { const v = viewOf(); if (v === 'studio') fitPending.current = true; setViewMode(v); };
+    window.addEventListener('popstate', back);
+    return () => window.removeEventListener('popstate', back);
+  }, []);
 
   const setParams = useCallback(
     (id: string, params: Record<string, unknown>) => {
@@ -201,6 +214,18 @@ export function App() {
   );
 
   const setView = useCallback((id: string, view: ViewSettings) => patchNode(id, { view }), [patchNode]);
+
+  const setType = useCallback(
+    (id: string, type: string) => {
+      const spec = SPECS[type];
+      if (!spec) return;
+      setNodes((ns) => ns.map((n) => (n.id === id && n.data.type !== type
+        ? { ...n, data: { ...n.data, type, params: { ...(spec.defaults ?? {}) }, state: IDLE } }
+        : n)));
+      setParams(id, {});  // everything after it has to run again
+    },
+    [setNodes, setParams],
+  );
 
   const isValidConnection: IsValidConnection<Edge> = useCallback((c) => {
     if (c.source === c.target) return false;
@@ -304,16 +329,27 @@ export function App() {
   useEffect(() => exposeTestHooks({ executor, run, load, setParams, nodes: () => nodesRef.current, engine: () => engineInfo }), [executor, run, load, setParams, engineInfo]);
 
   const studio: Studio = useMemo(
-    () => ({ executor, engine: engineInfo, samples, running, setParams, setView }),
-    [executor, engineInfo, samples, running, setParams, setView],
+    () => ({ executor, workflow: name, engine: engineInfo, samples, running, setParams, setType, setView }),
+    [executor, name, engineInfo, samples, running, setParams, setType, setView],
   );
   const selectedNode = nodes.find((n) => n.id === selected);
   const browserNode = nodes.find((n) => n.data.state.status === 'running' && SPECS[n.data.type]?.group !== 'server');
 
+  // a pipeline needs every model its steps use; until the engine has started, assume they are there
+  const missing = (wf: WorkflowFile) =>
+    !!engineInfo && wf.nodes.some((n) => { const m = SPECS[n.type]?.model; return !!m && !engineInfo.manifest.models[m]; });
+
+  if (view === 'home') {
+    return (
+      <Home pipelines={PIPELINES} missing={missing} samples={samples} appearance={appearance} theme={theme} onAppearance={setAppearance}
+            onStart={(wf) => { if (!running) load(wf); go('studio'); }} />
+    );
+  }
+
   return (
     <StudioContext.Provider value={studio}>
       <div className="app">
-        <TopBar name={name} engine={engineInfo} engineError={engineError} running={running} lastRun={lastRun} onRun={() => void run()} onStop={() => executor.stop()} onSave={save} onOpen={(f) => void open(f)} appearance={appearance} theme={theme} onAppearance={setAppearance} account={account} onSignOut={() => void api.logout().finally(() => setAccount({ mode: 'signin' }))} />
+        <TopBar name={name} engine={engineInfo} engineError={engineError} running={running} lastRun={lastRun} onRun={() => void run()} onStop={() => executor.stop()} onSave={save} onOpen={(f) => void open(f)} appearance={appearance} theme={theme} onAppearance={setAppearance} account={account} onSignOut={() => void api.logout().finally(() => setAccount({ mode: 'signin' }))} onHome={() => go('home')} />
         <Sidebar current={name} onLoad={(wf) => load(wf)} onAdd={(t) => addNode(t)} server={account.mode === 'ready'} />
         <main className="canvas" onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} onDrop={onDrop}>
           <ReactFlow<StudioNode, Edge>

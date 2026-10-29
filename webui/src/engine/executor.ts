@@ -10,6 +10,7 @@
 import { engine } from '../runtime/engine';
 import { getFolder, hash, loadRecords, saveRecord, type FolderPhoto, type PhotoRecord } from './folder';
 import { SPECS } from './specs';
+import { measures } from './summary';
 import type { NodeValue } from './values';
 
 export interface GraphNode {
@@ -253,8 +254,14 @@ export class Executor {
       onState(node.id, { status: 'done', ms, version: ++this.version });
       return { status: 'done' };
     } catch (error) {
+      // an earlier result of this node (or of a node with the same id in another workflow) is not this run's
+      if (previous) {
+        this.records.delete(node.id);
+        const stale = imageIds(previous);
+        if (stale.length) void engine.call({ op: 'release', ids: stale });
+      }
       const message = error instanceof Error ? error.message : String(error);
-      onState(node.id, { status: 'error', message, version: this.version });
+      onState(node.id, { status: 'error', message, version: ++this.version });
       return { status: 'error', message };
     }
   }
@@ -308,12 +315,14 @@ export class Executor {
 
   /** The small results of one photo: every M1 grade and every M3 feature set downstream of the folder. */
   private collect(path: string, steps: GraphNode[], ms: number, error?: string): PhotoRecord {
-    const record: PhotoRecord = { path, status: error ? 'error' : 'done', ms, error, quality: {}, features: {} };
+    const record: PhotoRecord = { path, status: error ? 'error' : 'done', ms, error, quality: {}, features: {}, measures: {} };
     if (error) return record;
     for (const n of steps) {
       for (const v of Object.values(this.records.get(n.id)?.outputs ?? {})) {
         if (v.kind === 'quality') record.quality[n.id] = v.result;
         if (v.kind === 'features') record.features[n.id] = { features: v.result.features, centredOn: v.result.centredOn, gradable: v.gradable };
+        const m = measures(v);
+        if (m) record.measures![n.id] = m;
       }
     }
     return record;

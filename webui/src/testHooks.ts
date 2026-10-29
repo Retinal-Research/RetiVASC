@@ -25,7 +25,8 @@ function base64(bytes: Uint8Array): string {
 export function exposeTestHooks(h: Hooks): void {
   (window as unknown as { __studio: unknown }).__studio = {
     workflows: () => WORKFLOWS.map((w) => w.name),
-    load: (index: number) => h.load(WORKFLOWS[index], false),
+    // a library entry by position or by id ('retivasc', 'automorph', 'vascx', 'custom')
+    load: (which: number | string) => h.load(typeof which === 'string' ? WORKFLOWS.find((w) => w.id === which) ?? WORKFLOWS[0] : WORKFLOWS[which], false),
     setSource: (id: string, source: string) => h.setParams(id, { source }),
     setParams: (id: string, params: Record<string, unknown>) => h.setParams(id, params),
     run: () => h.run(),
@@ -48,6 +49,8 @@ export function exposeTestHooks(h: Hooks): void {
         case 'av':
         case 'disc':
           return { kind: v.kind, size: v.map.width, labels: base64(v.map.labels), timing: v.timing };
+        case 'fovea':
+          return { kind: v.kind, x: v.x, y: v.y, size: v.size, timing: v.timing };
         case 'features':
           return { kind: v.kind, features: v.result.features, centredOn: v.result.centredOn, discValid: v.result.discValid, ms: v.result.ms, gradable: v.gradable };
       }

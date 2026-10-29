@@ -2,13 +2,13 @@
 // worker; the canvas only wires them together.
 
 import { engine } from '../runtime/engine';
-import type { ImageHandle, LabelOutput, M0Output, M3Output, ModelKey, Progress, QualityOutput, VesselOutput } from '../runtime/protocol';
+import type { EnhanceOutput, FoveaOutput, ImageHandle, LabelOutput, M0Output, M3Output, ModelKey, Progress, QualityOutput, VascxPrepOutput, VesselOutput } from '../runtime/protocol';
 import type { BatchItem } from './executor';
 import { readSource } from './sources';
 import type { M0Value, NodeValue, PortType } from './values';
 import { serverAnalyze, studyPhotos, studySheet } from './study';
 
-export type NodeGroup = 'input' | 'm0' | 'm1' | 'm2' | 'm3' | 'view' | 'server' | 'study';
+export type NodeGroup = 'input' | 'm0' | 'enhance' | 'm1' | 'm2' | 'm3' | 'vascx' | 'view' | 'server' | 'study';
 
 export interface PortSpec {
   id: string;
@@ -44,9 +44,11 @@ export interface NodeSpec {
 export const GROUP_LABEL: Record<NodeGroup, string> = {
   input: 'Input',
   m0: 'AutoMorph M0',
+  enhance: 'RetiVASC',
   m1: 'AutoMorph M1',
   m2: 'AutoMorph M2',
   m3: 'AutoMorph M3',
+  vascx: 'VascX',
   view: 'View',
   server: 'Server · full model',
   study: 'Study sheet',
@@ -103,8 +105,23 @@ const specs: NodeSpec[] = [
       if (!src || src.kind !== 'fundus') throw new Error('expects a fundus photo');
       const out = await engine.call<M0Output>({ op: 'm0', imageId: src.imageId }, ctx.progress);
       return {
-        image: { kind: 'm0', imageId: out.imageId, side: out.width, geometry: out.geometry, preview: out.preview, ms: out.ms, source: src.name },
+        image: { kind: 'm0', imageId: out.imageId, side: out.width, geometry: out.geometry, preview: out.preview, ms: out.ms, source: src.name, made: 'm0' },
       };
+    },
+  },
+  {
+    type: 'retivasc.enhance',
+    title: 'Enhance · TPOT',
+    subtitle: "The lab's TPOT enhancement, restored to full resolution",
+    group: 'enhance',
+    model: 'tpot',
+    inputs: [{ id: 'image', label: 'cropped', type: 'm0' }],
+    outputs: [{ id: 'image', label: 'enhanced', type: 'm0' }],
+    async run(ctx) {
+      const base = m0Input(ctx);
+      const out = await engine.call<EnhanceOutput>({ op: 'enhance', imageId: base.imageId, quick: !!ctx.params.quick }, ctx.progress);
+      // the same square and field of view as the input, so every later step works as without enhancement
+      return { image: { ...base, kind: 'm0', imageId: out.imageId, preview: out.preview, ms: out.ms, timing: out.timing, made: 'enhanced', before: base.preview, hires: undefined } };
     },
   },
   {
@@ -195,6 +212,80 @@ const specs: NodeSpec[] = [
     },
   },
   {
+    type: 'vascx.prep',
+    title: 'VascX · Preprocess',
+    subtitle: 'Find the field of view, crop it to 1024 × 1024',
+    group: 'vascx',
+    inputs: [{ id: 'image', label: 'photo', type: 'fundus' }],
+    outputs: [{ id: 'image', label: 'cropped', type: 'm0' }],
+    async run(ctx) {
+      const src = ctx.inputs.image;
+      if (!src || src.kind !== 'fundus') throw new Error('expects a fundus photo');
+      const out = await engine.call<VascxPrepOutput>({ op: 'vx_prep', imageId: src.imageId }, ctx.progress);
+      return {
+        image: { kind: 'm0', imageId: out.imageId, side: out.width, geometry: out.geometry, preview: out.preview, ms: out.ms, source: src.name, fovRadius: out.width / 2, made: 'vascx' },
+      };
+    },
+  },
+  {
+    type: 'vascx.vessel',
+    title: 'VascX · Vessels',
+    subtitle: 'Binary vessel segmentation, 4 flips averaged',
+    group: 'vascx',
+    model: 'vx_vessel',
+    inputs: [{ id: 'image', label: 'cropped', type: 'm0' }],
+    outputs: [{ id: 'vessel', label: 'vessels', type: 'vessel' }],
+    async run(ctx) {
+      const base = m0Input(ctx);
+      const out = await engine.call<VesselOutput>({ op: 'vx_vessel', imageId: base.imageId }, ctx.progress);
+      return { vessel: { kind: 'vessel', size: out.size, mask: out.mask, timing: out.timing, base } };
+    },
+  },
+  {
+    type: 'vascx.av',
+    title: 'VascX · Artery / vein',
+    subtitle: '9 windows of 512, 4 flips averaged',
+    group: 'vascx',
+    model: 'vx_av',
+    inputs: [{ id: 'image', label: 'cropped', type: 'm0' }],
+    outputs: [{ id: 'av', label: 'artery/vein', type: 'av' }],
+    async run(ctx) {
+      const base = m0Input(ctx);
+      const out = await engine.call<LabelOutput>({ op: 'vx_av', imageId: base.imageId }, ctx.progress);
+      return { av: { kind: 'av', map: out.map, timing: out.timing, base } };
+    },
+  },
+  {
+    type: 'vascx.disc',
+    title: 'VascX · Optic disc',
+    subtitle: 'Optic disc (no cup), the largest region',
+    group: 'vascx',
+    model: 'vx_disc',
+    inputs: [{ id: 'image', label: 'cropped', type: 'm0' }],
+    outputs: [{ id: 'disc', label: 'disc', type: 'disc' }],
+    async run(ctx) {
+      const base = m0Input(ctx);
+      const out = await engine.call<LabelOutput>({ op: 'vx_disc', imageId: base.imageId }, ctx.progress);
+      return { disc: { kind: 'disc', map: out.map, timing: out.timing, base } };
+    },
+  },
+  {
+    type: 'vascx.fovea',
+    title: 'VascX · Fovea',
+    subtitle: 'Centre of the macula, from a heatmap',
+    group: 'vascx',
+    model: 'vx_fovea',
+    inputs: [{ id: 'image', label: 'cropped', type: 'm0' }],
+    outputs: [{ id: 'fovea', label: 'fovea', type: 'fovea' }],
+    async run(ctx) {
+      const base = m0Input(ctx);
+      const out = await engine.call<FoveaOutput>({ op: 'vx_fovea', imageId: base.imageId }, ctx.progress);
+      // in the base image's pixels
+      const k = base.side / out.size;
+      return { fovea: { kind: 'fovea', x: out.x * k, y: out.y * k, size: base.side, timing: out.timing, base } };
+    },
+  },
+  {
     type: 'server.analyze',
     title: 'AutoMorph v2 · full analysis',
     subtitle: 'All ensemble members, 72 features, on the server',
@@ -234,6 +325,7 @@ const specs: NodeSpec[] = [
       { id: 'vessel', label: 'vessels', type: 'vessel', optional: true },
       { id: 'av', label: 'artery/vein', type: 'av', optional: true },
       { id: 'disc', label: 'disc/cup', type: 'disc', optional: true },
+      { id: 'fovea', label: 'fovea', type: 'fovea', optional: true },
     ],
     outputs: [],
     async run() {

@@ -9,7 +9,7 @@ export interface ViewSettings {
   opacity: number;
 }
 
-export const DEFAULT_VIEW: ViewSettings = { layers: { vessel: true, av: true, disc: true }, opacity: 0.85 };
+export const DEFAULT_VIEW: ViewSettings = { layers: { vessel: true, av: true, disc: true, fovea: true }, opacity: 0.85 };
 
 export interface StudioNodeData extends Record<string, unknown> {
   type: string;
@@ -20,10 +20,14 @@ export interface StudioNodeData extends Record<string, unknown> {
 
 export interface Studio {
   executor: Executor;
+  /** the workflow on the canvas, e.g. for naming downloads */
+  workflow: string;
   engine?: EngineInfo;
   samples: Sample[];
   running: boolean;
   setParams: (nodeId: string, params: Record<string, unknown>) => void;
+  /** swap a node for another type with the same ports (one photo / a folder), keeping its connections */
+  setType: (nodeId: string, type: string) => void;
   setView: (nodeId: string, view: ViewSettings) => void;
 }
 

@@ -4,6 +4,9 @@
 # part of the site; the page downloads them from RETIVASC_MODELS_URL (a repository variable, e.g. a
 # Hugging Face model repository at a version tag, https://huggingface.co/<owner>/<repo>/resolve/<tag>/), which must
 # allow cross-origin requests. Without that variable the job is skipped.
+# VascX loads from its authors' repository on Hugging Face at a fixed revision (RETIVASC_VASCX_URL
+# overrides it). TPOT, the lab's enhancement, loads from RETIVASC_TPOT_URL; without it the site
+# says the enhancement is not installed, and the other pipelines work.
 name: pages
 on:
   push:
@@ -35,16 +38,22 @@ jobs:
         env:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
           VITE_MODELS_URL: ${{ vars.RETIVASC_MODELS_URL }}
+          VITE_VASCX_URL: ${{ vars.RETIVASC_VASCX_URL || 'https://huggingface.co/Eyened/vascx/resolve/383bcf530510a7c8d7ad7bc34ec23f48c87ce29d/' }}
+          VITE_TPOT_URL: ${{ vars.RETIVASC_TPOT_URL }}
         run: |
           npm ci
           npm run check
           npx vite build
-          rm -f dist/models/*.onnx   # never part of the site, even if present
+          find dist/models -name '*.onnx' -delete   # never part of the site, even if present
+          # without a host for TPOT the site must not claim to have it
+          if [ -z "$VITE_TPOT_URL" ]; then rm -f dist/models/tpot/manifest.json; fi
       - name: Check that the models are reachable from a browser
         run: |
-          url="${{ vars.RETIVASC_MODELS_URL }}"; url="${url%/}/disc_cup/disc_cup.onnx"
-          curl -sfIL -H 'Origin: https://example.github.io' "$url" | grep -i '^access-control-allow-origin' \
-            || { echo "::error::$url is missing or does not allow cross-origin requests"; exit 1; }
+          check() { curl -sfIL -H 'Origin: https://example.github.io' "$1" | grep -qi '^access-control-allow-origin' \
+            || { echo "::error::$1 is missing or does not allow cross-origin requests"; exit 1; }; }
+          url="${{ vars.RETIVASC_MODELS_URL }}"; check "${url%/}/disc_cup/disc_cup.onnx"
+          url="${{ vars.RETIVASC_VASCX_URL || 'https://huggingface.co/Eyened/vascx/resolve/383bcf530510a7c8d7ad7bc34ec23f48c87ce29d/' }}"; check "${url%/}/disc/disc_may26.onnx"
+          url="${{ vars.RETIVASC_TPOT_URL }}"; if [ -n "$url" ]; then check "${url%/}/tpot.onnx"; fi
       - uses: actions/upload-pages-artifact@v3
         with:
           path: webui/dist

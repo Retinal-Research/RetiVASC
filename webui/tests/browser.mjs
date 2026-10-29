@@ -22,7 +22,7 @@ const problems = [];
 page.on('console', (m) => { if (m.type() === 'error') problems.push(m.text()); });
 page.on('pageerror', (e) => problems.push(String(e)));
 
-await page.goto(URL);
+await page.goto(URL + '#studio');
 await page.waitForFunction(() => window.__studio?.engine(), null, { timeout: 120_000 });
 const engine = await page.evaluate(() => {
   const e = window.__studio.engine();
@@ -30,11 +30,13 @@ const engine = await page.evaluate(() => {
 });
 console.log('engine', engine);
 
-// the page starts a run of the first workflow on load; wait for it to settle
+// nothing runs by itself: open AutoMorph, run it once (models load here) and wait for it to settle
 const settle = () => page.waitForFunction(() => {
   const s = window.__studio.states();
   return Object.values(s).every((x) => x.status !== 'running') && Object.values(s).some((x) => x.status === 'done' || x.status === 'error');
 }, null, { timeout: 600_000, polling: 250 });
+await page.evaluate(() => window.__studio.load('automorph'));
+await page.evaluate(() => window.__studio.run());
 await settle();
 
 const decode = (b64) => Buffer.from(b64, 'base64');
@@ -102,7 +104,8 @@ if (shots) {
     await page.waitForTimeout(400);
     await page.screenshot({ path: join(SHOTS, `ui_${id}.png`) });
   }
-  await page.click('.wf:nth-of-type(4)');
+  await page.click('.wf:has-text("Artery / vein and optic disc")');
+  await page.evaluate(() => window.__studio.run());  // nothing runs by itself
   await settle();
   await page.waitForTimeout(600);
   await page.screenshot({ path: join(SHOTS, 'ui_av_disc_workflow.png') });

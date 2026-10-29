@@ -1,17 +1,18 @@
 // Turns results into drawable layers and paints them over the M0 photo.
 
 import { AV, DISC } from '../automorph/postprocess';
-import type { ArteryVeinValue, DiscCupValue, NodeValue, VesselValue } from '../engine/values';
+import type { ArteryVeinValue, DiscCupValue, FoveaValue, NodeValue, VesselValue } from '../engine/values';
 
-export type LayerKind = 'vessel' | 'av' | 'disc';
-export type LayerValue = VesselValue | ArteryVeinValue | DiscCupValue;
+export type LayerKind = 'vessel' | 'av' | 'disc' | 'fovea';
+export type LayerValue = VesselValue | ArteryVeinValue | DiscCupValue | FoveaValue;
 
-export const LAYER_LABEL: Record<LayerKind, string> = { vessel: 'Vessels', av: 'Artery / vein', disc: 'Disc & cup' };
+export const LAYER_LABEL: Record<LayerKind, string> = { vessel: 'Vessels', av: 'Artery / vein', disc: 'Disc & cup', fovea: 'Fovea' };
 
 export const LEGEND: Record<LayerKind, Array<[string, string]>> = {
   vessel: [['Vessel', '#2ee6f2']],
   av: [['Artery', '#ff4b4b'], ['Vein', '#4b8bff'], ['Crossing', '#3ddc84']],
   disc: [['Optic disc', '#ffd84a'], ['Cup', '#ff6fc1']],
+  fovea: [['Fovea', '#ffffff']],
 };
 
 const cache = new WeakMap<object, HTMLCanvasElement>();
@@ -40,6 +41,23 @@ export function layerCanvas(value: LayerValue): HTMLCanvasElement {
   const hit = cache.get(value);
   if (hit) return hit;
   let canvas: HTMLCanvasElement;
+  if (value.kind === 'fovea') {
+    // a ring and a cross at the fovea, on a 512 canvas over the whole base image
+    const n = 512, x = (value.x / value.size) * n, y = (value.y / value.size) * n;
+    canvas = document.createElement('canvas');
+    canvas.width = n;
+    canvas.height = n;
+    const g = canvas.getContext('2d')!;
+    g.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+    g.lineWidth = 5;
+    g.beginPath(); g.arc(x, y, 13, 0, 2 * Math.PI); g.stroke();
+    g.strokeStyle = '#ffffff';
+    g.lineWidth = 2.5;
+    g.beginPath(); g.arc(x, y, 13, 0, 2 * Math.PI); g.moveTo(x - 22, y); g.lineTo(x - 6, y); g.moveTo(x + 6, y); g.lineTo(x + 22, y);
+    g.moveTo(x, y - 22); g.lineTo(x, y - 6); g.moveTo(x, y + 6); g.lineTo(x, y + 22); g.stroke();
+    cache.set(value, canvas);
+    return canvas;
+  }
   if (value.kind === 'vessel') {
     const { size, mask } = value;
     canvas = canvasFrom(size, size, (px) => {
@@ -104,7 +122,7 @@ export function paint(ctx: CanvasRenderingContext2D, base: ImageBitmap, layers: 
 }
 
 export function isLayer(v: NodeValue | undefined): v is LayerValue {
-  return !!v && (v.kind === 'vessel' || v.kind === 'av' || v.kind === 'disc');
+  return !!v && (v.kind === 'vessel' || v.kind === 'av' || v.kind === 'disc' || v.kind === 'fovea');
 }
 
 export function countLabels(labels: Uint8Array, classes: number): number[] {

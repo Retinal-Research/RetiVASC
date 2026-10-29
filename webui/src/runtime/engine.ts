@@ -21,7 +21,13 @@ export class Engine {
         else p.reject(new Error(msg.error));
       }
     };
-    this.ready = this.call<EngineInfo>({ op: 'init', base: import.meta.env.BASE_URL, models: import.meta.env.VITE_MODELS_URL });
+    this.ready = this.call<EngineInfo>({
+      op: 'init',
+      base: import.meta.env.BASE_URL,
+      models: import.meta.env.VITE_MODELS_URL,
+      vascx: import.meta.env.VITE_VASCX_URL,
+      tpot: import.meta.env.VITE_TPOT_URL,
+    });
   }
 
   call<T>(op: EngineOp, onProgress?: (p: Progress) => void, transfer: Transferable[] = []): Promise<T> {
