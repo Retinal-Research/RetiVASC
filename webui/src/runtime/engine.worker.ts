@@ -14,6 +14,8 @@ import { runM3 } from '../automorph/m3/m3';
 import { resizePIL } from '../automorph/resample';
 import type { M0Geometry, RGBImage } from '../automorph/types';
 import { cropFundus, fundusBounds } from '../vascx/prep';
+import { processProb } from '../retiflow';
+import { av3, circleMask, RRW_SIDE, rrwnetInput } from '../rrwnet/prep';
 import type { Backend, EngineInfo, EngineMessage, EngineOp, GpuChoice, ImageHandle, Manifest, ModelInfo, ModelKey, ModelNeed, ModelSet, ModelStatus, Progress, Timing } from './protocol';
 
 declare const self: DedicatedWorkerGlobalScope;
@@ -38,6 +40,7 @@ let base = '/';
 let modelsUrl = '';
 let vascxUrl = '';
 let tpotUrl = '';
+let rrwnetUrl = '';
 let backend: Backend = 'wasm';
 let nextImage = 1;
 
@@ -59,7 +62,7 @@ self.onmessage = async (event: MessageEvent<{ id: number } & EngineOp>) => {
 async function handle(req: EngineOp, progress: (p: Progress) => void): Promise<[unknown, Transferable[]]> {
   switch (req.op) {
     case 'init':
-      return [await init(req.base, req.models, req.vascx, req.tpot, req.gpu), []];
+      return [await init(req.base, req.models, req.vascx, req.tpot, req.rrwnet, req.gpu), []];
     case 'status':
       return [await status(), []];
     case 'preload':
@@ -127,20 +130,25 @@ async function handle(req: EngineOp, progress: (p: Progress) => void): Promise<[
       return vascx(req.op, take(req.imageId), progress);
     case 'enhance':
       return enhance(take(req.imageId), !!req.quick, progress);
+    case 'rrwnet':
+      return rrwnet(take(req.imageId), progress);
+    case 'retiflow':
+      return retiflow(req.av3, req.size, progress);
   }
 }
 
 const slash = (url = '') => (url && !url.endsWith('/') ? `${url}/` : url);
 
-async function init(baseUrl: string, models = '', vascx = '', tpot = '', gpu: GpuChoice = 'high-performance'): Promise<EngineInfo> {
+async function init(baseUrl: string, models = '', vascx = '', tpot = '', rrwnet = '', gpu: GpuChoice = 'high-performance'): Promise<EngineInfo> {
   base = baseUrl;
   modelsUrl = slash(models);
   vascxUrl = slash(vascx);
   tpotUrl = slash(tpot);
+  rrwnetUrl = slash(rrwnet);
   manifest = (await (await fetch(`${base}models/manifest.json`, { cache: 'no-cache' })).json()) as Manifest;
   for (const info of Object.values(manifest.models)) if (info) info.set = 'automorph';
   // VascX and TPOT are optional: a deployment without them still runs AutoMorph
-  for (const set of ['vascx', 'tpot'] as const) {
+  for (const set of ['vascx', 'tpot', 'rrwnet'] as const) {
     try {
       const r = await fetch(`${base}models/${set}/manifest.json`, { cache: 'no-cache' });
       if (!r.ok) continue;
@@ -222,12 +230,13 @@ const MISSING: Record<ModelSet, string> = {
   automorph: 'the AutoMorph models are missing; run tools/release.py fetch',
   vascx: 'the VascX models are not installed here; run tools/release.py fetch --vascx, or set VITE_VASCX_URL',
   tpot: 'the TPOT enhancement models are not installed here; run tools/export_tpot.py, or set VITE_TPOT_URL',
+  rrwnet: 'the RRWNet model is not installed here; run tools/export_rrwnet.py, or set VITE_RRWNET_URL',
 };
 
 function info(key: ModelKey): ModelInfo {
   if (!manifest) throw new Error('engine not initialised');
   const m = manifest.models[key];
-  if (!m) throw new Error(MISSING[key.startsWith('vx_') ? 'vascx' : key.startsWith('tpot') ? 'tpot' : 'automorph']);
+  if (!m) throw new Error(MISSING[key.startsWith('vx_') ? 'vascx' : key.startsWith('tpot') ? 'tpot' : key === 'rrwnet' ? 'rrwnet' : 'automorph']);
   return m;
 }
 
@@ -240,6 +249,7 @@ function partUrl(key: ModelKey, file: string): string {
   switch (info(key).set) {
     case 'vascx': return `${vascxUrl || `${base}models/vascx/`}${file}`;
     case 'tpot': return `${tpotUrl || `${base}models/tpot/`}${file}`;
+    case 'rrwnet': return `${rrwnetUrl || `${base}models/rrwnet/`}${file}`;
     default: return modelsUrl ? `${modelsUrl}${key}/${file.split('/').pop()}` : `${base}${file}`;
   }
 }
@@ -718,4 +728,39 @@ async function enhance(src: RGBImage, quick: boolean, progress: (p: Progress) =>
   const handle = await store(enhanced);
   const timing: Timing = { preprocessMs: pre, inferenceMs, postprocessMs: performance.now() - t1, loadMs: loadMs || undefined, backend: first.backend };
   return [{ ...handle, ms: performance.now() - t0, timing }, [handle.preview]];
+}
+
+// ---------------------------------------------------------------- RRWNet
+
+/**
+ * RRWNet on the square photo, as RetiFlow's examples run it: the photo at 584 x 584 (Pillow's bicubic), its
+ * circular field of view, RRWNet's own preprocessing (src/rrwnet/prep.ts), the network, and its probabilities
+ * kept as the 8-bit AV3 map RetiFlow reads. For AutoMorph's 72 features the map is also resized (bilinear)
+ * to the sizes its M2 maps have: vessels at 912, arteries and veins at 720.
+ */
+async function rrwnet(src: RGBImage, progress: (p: Progress) => void): Promise<[unknown, Transferable[]]> {
+  const t0 = performance.now();
+  progress({ stage: 'preprocess', message: 'Preparing the photo for RRWNet' });
+  const input = rrwnetInput(resizePIL(src, RRW_SIDE, RRW_SIDE, 'bicubic'), circleMask(RRW_SIDE));
+  const pre = performance.now() - t0;
+  const r = await runOnce('rrwnet', { image: { data: input.x, dims: [1, 3, input.side, input.side] } }, progress, 'Arteries, veins and vessels');
+  const t1 = performance.now();
+  const map = av3(r.data, input);
+  const rgb: RGBImage = { width: RRW_SIDE, height: RRW_SIDE, data: map };
+  const v = resizePIL(rgb, 912, 912, 'bilinear').data, av = resizePIL(rgb, 720, 720, 'bilinear').data;
+  const vessel = new Uint8Array(912 * 912), labels = new Uint8Array(720 * 720);
+  for (let i = 0; i < vessel.length; i++) vessel[i] = v[i * 3 + 2] > 127 ? 1 : 0;
+  for (let i = 0; i < labels.length; i++) labels[i] = (av[i * 3] > 127 ? 1 : 0) + (av[i * 3 + 1] > 127 ? 2 : 0);  // 3: both
+  const timing: Timing = { preprocessMs: pre, inferenceMs: r.ms, postprocessMs: performance.now() - t1, loadMs: r.loadMs || undefined, backend: r.backend };
+  return [{ size: RRW_SIDE, av3: map, vessel, labels, timing }, [map.buffer, vessel.buffer, labels.buffer]];
+}
+
+// ---------------------------------------------------------------- RetiFlow
+
+/** RetiFlow on RRWNet's AV3 map (src/retiflow): the bifurcations of the arteries and of the veins. */
+function retiflow(map: Uint8Array, size: number, progress: (p: Progress) => void): [unknown, Transferable[]] {
+  const t0 = performance.now();
+  const r = processProb(map, size, size, (message) => progress({ stage: 'measure', message }));
+  const result = { ...r, ms: performance.now() - t0 };
+  return [result, [r.artery.centerline.buffer, r.vein.centerline.buffer]];
 }

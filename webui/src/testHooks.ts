@@ -55,6 +55,9 @@ export function exposeTestHooks(h: Hooks): void {
           return { kind: v.kind, x: v.x, y: v.y, size: v.size, timing: v.timing };
         case 'features':
           return { kind: v.kind, features: v.result.features, centredOn: v.result.centredOn, discValid: v.result.discValid, ms: v.result.ms, gradable: v.gradable };
+        case 'bifurcations':
+          return { kind: v.kind, size: v.size, root: v.root, ms: v.ms, gradable: v.gradable, warning: v.warning, failed: v.failed,
+                   artery: v.artery.points.map((p) => p.angle), vein: v.vein.points.map((p) => p.angle) };
         case 'report':
           return { kind: v.kind, text: v.text, writer: v.writer, model: v.model, ms: v.ms, unchecked: v.unchecked, judged: v.judged, scope: v.facts.scope, facts: v.facts.groups, qa: v.qa, result: v.result };
       }

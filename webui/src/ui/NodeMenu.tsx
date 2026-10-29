@@ -23,11 +23,11 @@ export function NodeMenu({ id }: { id: string }) {
   );
   return (
     <div className="ntools nodrag" ref={box}>
-      <button className="ntool" disabled={studio.running} onClick={() => studio.runStep(id)}
+      <button className="ntool run" disabled={studio.running} onClick={() => studio.runStep(id)}
               title="Run this step (and what it needs before it); the steps after it wait" aria-label="Run this step">
-        <span className="play" />
+        <span className="play" />Run
       </button>
-      <button className="ntool" onClick={() => setOpen((o) => !o)} title="More" aria-label="More" aria-expanded={open}>⋯</button>
+      <button className={`ntool more${open ? ' on' : ''}`} onClick={() => setOpen((o) => !o)} title="More: duplicate, disconnect, delete" aria-label="More" aria-expanded={open}>⋯</button>
       {open && (
         <div className="nmenu" role="menu">
           {item('Run this step', () => studio.runStep(id))}

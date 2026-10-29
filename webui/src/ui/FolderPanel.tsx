@@ -2,11 +2,10 @@
 // The run itself is the canvas Run (src/engine/executor.ts); this file only shows it.
 
 import { useRef, useSyncExternalStore } from 'react';
-import { pyRepr } from '../automorph/m3/pyfloat';
 import type { Executor, FolderRun } from '../engine/executor';
-import { addFolder, FOLDER_LIMIT, getFolder, type PhotoRecord } from '../engine/folder';
+import { addFolder, FOLDER_LIMIT, getFolder } from '../engine/folder';
 import { useStudio } from './context';
-import { FEATURE_ORDER } from './FeaturesPanel';
+import { downloadCsv } from '../engine/csv';
 import { ms, pct } from './format';
 
 export const useFolderRun = (executor: Executor): FolderRun | undefined => useSyncExternalStore(executor.subscribe, executor.folder);
@@ -22,45 +21,6 @@ function counts(run: FolderRun | undefined, total: number) {
   const done = all.filter((r) => r.status === 'done').length;
   const errors = all.filter((r) => r.status === 'error').length;
   return { done, errors, left: total - done, total };
-}
-
-/** One row per photo: each M1 step's grade, each M3 step's 72 features in AutoMorph's order, then time and errors. */
-function downloadCsv(run: FolderRun, name: string, workflow: string) {
-  const rows = run.photos.flatMap((p) => (run.records.has(p.path) ? [run.records.get(p.path)!] : []));
-  const m1 = [...new Set(rows.flatMap((r) => Object.keys(r.quality)))];
-  const m3 = [...new Set(rows.flatMap((r) => Object.keys(r.features)))];
-  // segmentation measures, named after their step: vessel_Vessel_share, av_Artery_share, fovea_Fovea_x, ...
-  const extra = [...new Set(rows.flatMap((r) => Object.entries(r.measures ?? {}).flatMap(([id, m]) => Object.keys(m).map((k) => `${id}_${k}`))))];
-  const extraValue = (r: PhotoRecord, col: string) => {
-    for (const [id, m] of Object.entries(r.measures ?? {})) {
-      if (col.startsWith(`${id}_`) && col.slice(id.length + 1) in m) return pyRepr(m[col.slice(id.length + 1)]);
-    }
-    return '';
-  };
-  const tag = (ids: string[], id: string, col: string) => (ids.length > 1 ? `${id}_${col}` : col);
-  const head = [
-    'Name',
-    ...m1.flatMap((id) => ['Quality', 'P_good', 'P_usable', 'P_reject', 'Gradable'].map((c) => tag(m1, id, c))),
-    ...m3.flatMap((id) => ['Centred_on', ...FEATURE_ORDER].map((c) => tag(m3, id, c))),
-    ...extra,
-    'Seconds', 'Error',
-  ];
-  const cell = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-  const line = (r: PhotoRecord) => [
-    r.path,
-    ...m1.flatMap((id) => { const q = r.quality[id]; return q ? [q.prediction, ...q.probs.map((p) => pyRepr(p)), q.gradable ? 'yes' : 'no'] : ['', '', '', '', '']; }),
-    ...m3.flatMap((id) => {
-      const f = r.features[id];
-      return f ? [f.centredOn, ...FEATURE_ORDER.map((k) => { const v = f.features[k]; return v == null ? '' : pyRepr(v); })] : new Array(1 + FEATURE_ORDER.length).fill('');
-    }),
-    ...extra.map((col) => extraValue(r, col)),
-    (r.ms / 1000).toFixed(1), r.error ?? '',
-  ].map(String).map(cell).join(',');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([[head.join(','), ...rows.map(line)].join('\n') + '\n'], { type: 'text/csv' }));
-  a.download = `${name}_${workflow.replace(/[^\w-]+/g, '_').replace(/^_+|_+$/g, '') || 'RetiVASC'}.csv`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 export function FolderBody({ nodeId, params }: { nodeId: string; params: Record<string, unknown> }) {
@@ -106,7 +66,7 @@ export function FolderBody({ nodeId, params }: { nodeId: string; params: Record<
           ) : (
             <span className="hint">{c.left === 0 && run ? 'All photos done.' : run && c.done ? 'Press Run to continue.' : 'Press Run to start.'}</span>
           )}
-          <button className="btn small" disabled={!run || c.done + c.errors === 0} onClick={() => run && downloadCsv(run, folder.name, studio.workflow)}>Download CSV</button>
+          <button className="btn small" disabled={!run || c.done + c.errors === 0} onClick={() => run && downloadCsv(run.photos.flatMap((p) => (run.records.has(p.path) ? [run.records.get(p.path)!] : [])), folder.name, studio.workflow)}>Download CSV</button>
         </div>
       )}
       {folder && !folder.refused && <div className="hint">Stop any time. Finished photos are kept in this browser: choose the same folder and press Run to continue.</div>}

@@ -113,6 +113,14 @@ class Limiter:
             self.running[ip] += 1
             return None
 
+    def today(self, ip: str, now: float | None = None) -> dict:
+        """What this IP has spent today (UTC day) against its limit, and whether the day's budget for
+        everyone still has room."""
+        with self.lock:
+            self._today(time.time() if now is None else now)
+            return {"used": round(self.spent.get(ip, 0.0), 6), "limit": self.s.ip_dollars_per_day,
+                    "open": self.total < self.s.dollars_per_day}
+
     def done(self, ip: str, cost: float, now: float | None = None) -> None:
         with self.lock:
             self._today(time.time() if now is None else now)
@@ -284,9 +292,12 @@ def install(app: FastAPI, s: ReportSettings) -> None:
 
     @app.get("/api/report")
     def status(request: Request):
+        """Whether reports can be written, and the caller's quota for today (what it has spent of its daily
+        dollars), which the page shows next to the report."""
         ready = s.enabled and s.provider in PROVIDERS and (s.provider == "fake" or bool(s.key()))
         r = JSONResponse({"enabled": ready, "model": s.model if ready else "",
-                          "limits": {"per_second": s.per_window / s.window_seconds, "at_once": s.max_running, "dollars_per_day": s.ip_dollars_per_day}})
+                          "limits": {"per_second": s.per_window / s.window_seconds, "at_once": s.max_running, "dollars_per_day": s.ip_dollars_per_day},
+                          "today": limiter.today(client_ip(request))})
         cors(request, r)
         return r
 

@@ -28,6 +28,7 @@ import { Home } from './ui/Home';
 import { Inspector } from './ui/Inspector';
 import { DRAG_TYPE, Sidebar } from './ui/Sidebar';
 import { TopBar, type PreloadState } from './ui/TopBar';
+import { firstVisit, Tour, tourFrom, type TourStep, type TourView } from './ui/Tour';
 import { mb } from './ui/format';
 import { useAppearance } from './ui/appearance';
 import { Login, useAccount } from './ui/Login';
@@ -37,6 +38,7 @@ import { api } from './server/api';
 import { exposeTestHooks } from './testHooks';
 import { llm } from './llm/llm';
 import { stopWriting } from './engine/report';
+import { downloadCsv } from './engine/csv';
 import type { LlmManifest, LlmStatus } from './llm/protocol';
 import { Grip } from './ui/Grip';
 import { isNum, useRemembered } from './remember';
@@ -121,6 +123,8 @@ export function App() {
   const [nodes, setNodes, onNodesChange] = useNodesState<StudioNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selected, setSelected] = useState<string | undefined>();
+  // the tutorial: by itself on the first visit, and from the Tutorial button
+  const [tour, setTour] = useState<TourStep[] | undefined>(() => (firstVisit() ? tourFrom(viewOf()) : undefined));
   const [engineInfo, setEngineInfo] = useState<EngineInfo>();
   const [engineError, setEngineError] = useState<string>();
   const [gpu, setGpu] = useState<GpuChoice>(engine.gpu);
@@ -477,6 +481,22 @@ export function App() {
     () => ({ executor, workflow: name, engine: engineInfo, samples, running, setParams, setType, setView, runStep, duplicate, disconnect, remove, removeEdge }),
     [executor, name, engineInfo, samples, running, setParams, setType, setView, runStep, duplicate, disconnect, remove, removeEdge],
   );
+  // the tour goes from the home page to the canvas with the RetiVASC pipeline, as Start does, and zooms to
+  // the step it explains
+  const tourView = useCallback((v: TourView) => { if (v === 'studio' && !running) load(FIRST); go(v); }, [running, load, go]);
+  const tourFocus = useCallback((id?: string) => {
+    void (id ? flow.fitView({ nodes: [{ id }], padding: 0.5, duration: 450, maxZoom: 1.1 }) : flow.fitView({ padding: 0.06, duration: 450, maxZoom: 1 }));
+  }, [flow]);
+
+  // after a run on one photo, its numbers as a CSV file (a folder has its own, on the folder step)
+  const photoCsv = (() => {
+    if (!lastRun || running || nodes.some((n) => n.data.type === 'input.folder')) return undefined;
+    const photo = nodes.map((n) => executor.outputs(n.id)?.image).find((v) => v?.kind === 'fundus');
+    const record = executor.photoRecord(nodes.map((n) => ({ id: n.id, type: n.data.type, params: n.data.params })), photo?.kind === 'fundus' ? photo.name : 'photo', lastRun.ms);
+    const any = Object.keys(record.quality).length + Object.keys(record.features).length + Object.keys(record.measures ?? {}).length;
+    return any ? () => downloadCsv([record], record.path, name) : undefined;
+  })();
+
   const selectedNode = nodes.find((n) => n.id === selected);
   const browserNode = nodes.find((n) => n.data.state.status === 'running' && SPECS[n.data.type]?.group !== 'server');
 
@@ -484,17 +504,23 @@ export function App() {
   const missing = (wf: WorkflowFile) =>
     !!engineInfo && wf.nodes.some((n) => { const m = SPECS[n.type]?.model; return !!m && !engineInfo.manifest.models[m]; });
 
+  const tutorial = tour && <Tour steps={tour} view={view} onView={tourView} onFocus={tourFocus} onClose={() => setTour(undefined)} />;
+
   if (view === 'home') {
     return (
-      <Home pipelines={PIPELINES} missing={missing} samples={samples} appearance={appearance} theme={theme} onAppearance={setAppearance}
-            onStart={(wf) => { if (!running) load(wf); go('studio'); }} />
+      <>
+        <Home pipelines={PIPELINES} missing={missing} samples={samples} appearance={appearance} theme={theme} onAppearance={setAppearance}
+              onStart={(wf) => { if (!running) load(wf); go('studio'); }} onTour={() => setTour(tourFrom('home'))} />
+        {tutorial}
+      </>
     );
   }
 
   return (
+    <>
     <StudioContext.Provider value={studio}>
       <div className="app" style={{ '--inspector-w': `${inspectorW}px` } as CSSProperties}>
-        <TopBar name={name} engine={engineInfo} engineError={engineError} gpu={gpu} onGpu={switchGpu} preload={preloadState} onPreload={() => void preload()} running={running} stopping={stopping} lastRun={lastRun} onRun={() => void run()} onStop={() => { setStopping(true); executor.stop(); stopWriting(); }} onSave={save} onOpen={(f) => void open(f)} appearance={appearance} theme={theme} onAppearance={setAppearance} account={account} onSignOut={() => void api.logout().finally(() => setAccount({ mode: 'signin' }))} onHome={() => go('home')} />
+        <TopBar name={name} engine={engineInfo} engineError={engineError} gpu={gpu} onGpu={switchGpu} preload={preloadState} onPreload={() => void preload()} running={running} stopping={stopping} lastRun={lastRun} onRun={() => void run()} onStop={() => { setStopping(true); executor.stop(); stopWriting(); }} onSave={save} onOpen={(f) => void open(f)} appearance={appearance} theme={theme} onAppearance={setAppearance} account={account} onSignOut={() => void api.logout().finally(() => setAccount({ mode: 'signin' }))} onHome={() => go('home')} onTour={() => setTour(tourFrom('studio'))} onCsv={photoCsv} />
         <Sidebar current={name} onLoad={(wf) => load(wf)} onAdd={(t) => addNode(t)} server={account.mode === 'ready'} />
         <main className="canvas" onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} onDrop={onDrop}>
           <ReactFlow<StudioNode, Edge>
@@ -532,5 +558,7 @@ export function App() {
         {account.mode === 'signin' && <Login onDone={(a) => setAccount({ mode: 'ready', account: a })} />}
       </div>
     </StudioContext.Provider>
+    {tutorial}
+    </>
   );
 }

@@ -1,11 +1,78 @@
 // The AI report in the inspector: the text, follow-up questions, the numbers it was given, and the
-// model that wrote it.
+// model that wrote it; while it is written, the steps so far; and the visitor's quota for today.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { factsText } from '../engine/prompt';
-import { askReport, stopWriting, type ReportValue } from '../engine/report';
+import { askReport, quota, stopWriting, type Quota, type ReportValue } from '../engine/report';
 import { ms } from './format';
 import { Markdown } from './Markdown';
+
+const EFFORT_LABEL: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'High' };
+const seconds = (t: number) => `${(Math.max(0, t) / 1000).toFixed(1)} s`;
+
+/** While the lab's model works: the steps so far and the time each took. The API sends only the answer,
+ *  not the model's reasoning, so these are RetiVASC's own steps. */
+export function ReportProgress({ since, text, effort, compact }: { since?: number; text?: string; effort: string; compact?: boolean }) {
+  const [start] = useState(() => since ?? Date.now());
+  const [now, setNow] = useState(() => Date.now());
+  const [wrote, setWrote] = useState<number>();
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 100);
+    return () => clearInterval(t);
+  }, []);
+  useEffect(() => {
+    if (text && wrote === undefined) setWrote(Date.now());
+  }, [text, wrote]);
+  const thinking = !text;
+  if (compact) {
+    return (
+      <div className="ai-thinking">
+        <span className="ai-orb" aria-hidden="true" />
+        <span className="shimmer">{thinking ? 'Thinking' : 'Writing'}</span>
+        <span className="faint">{seconds(now - (thinking ? start : wrote ?? now))}</span>
+      </div>
+    );
+  }
+  return (
+    <ol className="ai-steps" aria-live="polite">
+      <li className="done">Results collected · only numbers are sent, never the photographs</li>
+      <li className={thinking ? 'now' : 'done'}>
+        {thinking ? <span className="shimmer">The lab’s model is thinking</span> : 'Thought'}
+        <span className="faint"> · {EFFORT_LABEL[effort] ?? effort} reasoning · {seconds((wrote ?? now) - start)}</span>
+      </li>
+      <li className={thinking ? '' : 'now'}>
+        {thinking ? 'Write the report' : <span className="shimmer">Writing the report</span>}
+        {wrote !== undefined && <span className="faint"> · {seconds(now - wrote)}</span>}
+      </li>
+      <li>Check every number against the results</li>
+    </ol>
+  );
+}
+
+/** The visitor's quota for today, from the report service; again after every report or answer. */
+export function QuotaBar({ refresh }: { refresh?: unknown }) {
+  const [q, setQ] = useState<Quota>();
+  useEffect(() => {
+    let live = true;
+    void quota().then((x) => live && setQ(x));
+    return () => { live = false; };
+  }, [refresh]);
+  if (!q || !q.limit) return null;
+  const share = Math.min(1, q.used / q.limit);
+  // the service counts by UTC day
+  const d = new Date(), reset = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1));
+  const at = reset.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return (
+    <div className="quota" title={`$${q.used.toFixed(4)} of $${q.limit.toFixed(2)} of the lab’s API today, counted per network address. A report costs about $0.001.`}>
+      <div className="quota-text">
+        <span>Your AI quota today</span>
+        <span>{!q.open ? 'the service is out of today’s budget' : share >= 1 ? 'used up' : `${share < 0.01 && share > 0 ? '<1' : Math.round(share * 100)}% used`}</span>
+      </div>
+      <div className="quota-bar"><span style={{ width: `${Math.max(share * 100, share > 0 ? 2 : 0)}%` }} /></div>
+      <div className="quota-reset faint">Resets at {at}</div>
+    </div>
+  );
+}
 
 function download(name: string, text: string) {
   const url = URL.createObjectURL(new Blob([text], { type: 'text/markdown;charset=utf-8' }));
@@ -71,6 +138,7 @@ export function ReportView({ value, workflow }: { value: ReportValue; workflow: 
         <button className="btn small" onClick={() => download(`${workflow.replace(/[^\w-]+/g, '_')}_report.md`, markdown())}>Download .md</button>
         {value.cut && <span className="hint">Stopped before the end</span>}
       </div>
+      {value.writer === 'online' && <QuotaBar refresh={`${value.chat}:${value.qa.length}:${answering === undefined}`} />}
       <Markdown text={value.text} />
       <Checks unchecked={value.unchecked} judged={value.judged} />
 
@@ -101,7 +169,7 @@ export function ReportView({ value, workflow }: { value: ReportValue; workflow: 
       </section>
 
       <section className="isec">
-        <details>
+        <details open>
           <summary>The numbers the report is based on</summary>
           {value.facts.groups.map((g) => (
             <div key={g.title} className="facts">
@@ -130,6 +198,7 @@ export function ReportView({ value, workflow }: { value: ReportValue; workflow: 
               <div className="kv"><dt>Wrote</dt><dd>{r.newTokens} tokens, {r.tokensPerSecond.toFixed(1)} per second</dd></div>
             </>
           )}
+          {value.thinkMs !== undefined && <div className="kv"><dt>Thought</dt><dd>{ms(value.thinkMs)} before its first word ({EFFORT_LABEL[value.effort]} reasoning)</dd></div>}
           <div className="kv"><dt>Time</dt><dd>{ms(value.ms)}</dd></div>
         </dl>
       </section>

@@ -36,6 +36,8 @@ export interface NodeState {
   fraction?: number;
   /** text written so far, while the AI report is being written */
   text?: string;
+  /** while running: when the step started (Date.now()) */
+  since?: number;
   ms?: number;
   cached?: boolean;
   version: number;
@@ -241,6 +243,11 @@ export class Executor {
       onState(node.id, { status: 'error', message, version: this.version });
       return { status: 'error', message };
     }
+    if (spec.soon) {
+      // a placeholder: nothing to run yet, counted neither as run nor as waiting
+      onState(node.id, { status: 'idle', message: 'Coming soon', version: this.version });
+      return { status: 'cached' };
+    }
     const inputs: Record<string, NodeValue | undefined> = {};
     const many: NonNullable<RunContext['many']> = {};
     const parts: string[] = [];
@@ -274,7 +281,8 @@ export class Executor {
       return { status: 'cached' };
     }
     const prefix = batch ? `Photo ${batch.index + 1} of ${batch.total} · ` : '';
-    onState(node.id, { status: 'running', message: `${prefix}Starting`, version: this.version });
+    const since = Date.now();
+    onState(node.id, { status: 'running', message: `${prefix}Starting`, since, version: this.version });
     try {
       const t = performance.now();
       const outputs = await spec.run({
@@ -283,7 +291,7 @@ export class Executor {
         params: node.params,
         batch,
         cohort,
-        progress: (p) => onState(node.id, { status: 'running', message: prefix + p.message, fraction: p.fraction, text: p.text, version: this.version }),
+        progress: (p) => onState(node.id, { status: 'running', message: prefix + p.message, fraction: p.fraction, text: p.text, since, version: this.version }),
       });
       const ms = performance.now() - t;
       const replaced = imageIds(previous);
@@ -350,6 +358,11 @@ export class Executor {
       this.setFolder({ running: false, stopping: false, current: undefined });
     }
     return this.folderRun.sessionDone;
+  }
+
+  /** The numbers of the photo on the canvas, as a CSV row holds them (one photo, not a folder). */
+  photoRecord(nodes: GraphNode[], name: string, ms: number): PhotoRecord {
+    return this.collect(name, nodes, ms);
   }
 
   /** The small results of one photo: every M1 grade and every M3 feature set downstream of the folder. */

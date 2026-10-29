@@ -42,6 +42,15 @@ def test_writes_a_report_and_answers_a_question(tmp_path):
     assert q.status_code == 200 and "(test report)" in q.text
 
 
+def test_shows_the_callers_quota_for_today(tmp_path):
+    c = client(tmp_path)
+    today = c.get("/api/report").json()["today"]
+    assert today == {"used": 0, "limit": 1.0, "open": True}
+    c.post("/api/report", json={"facts": SHEET})  # the test provider charges 0.001
+    assert c.get("/api/report").json()["today"]["used"] == 0.001
+    assert c.get("/api/report", headers={"CF-Connecting-IP": "203.0.113.9"}).json()["today"]["used"] == 0.001  # not through the tunnel
+
+
 def test_only_allowed_sites(tmp_path):
     c = client(tmp_path)
     assert c.options("/api/report", headers={"Origin": SITE}).headers["access-control-allow-origin"] == SITE

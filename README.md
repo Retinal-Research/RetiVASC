@@ -9,23 +9,25 @@ For each photograph, RetiVASC:
 1. finds the circular field of view and crops the photograph to it;
 2. grades image quality as good, usable or reject, so unreliable photographs can be set aside;
 3. outlines the vessels, separates arteries from veins, and finds the optic disc and cup;
-4. reports 72 measurements of the vessel tree. These are vessel density, calibre, tortuosity and fractal dimension, plus the summary calibres CRAE and CRVE and their ratio (AVR), for the whole image and for the standard rings around the optic disc;
-5. writes a report: a language model turns the measurements into text, in English or Chinese, and answers questions about them.
+4. finds where arteries and veins branch, and measures the angle of each branching;
+5. reports 72 measurements of the vessel tree. These are vessel density, calibre, tortuosity and fractal dimension, plus the summary calibres CRAE and CRVE and their ratio (AVR), for the whole image and for the standard rings around the optic disc;
+6. writes a report: a language model turns the measurements into text, in English or Chinese, and answers questions about them.
 
-The page opens on a home page with four pipelines. Each step of a pipeline is a *skill* on a canvas: the pipelines are ready-made, and the skills can be connected into new ones.
+The page opens on a home page with four pipelines, and a one-minute tutorial that opens by itself on the first visit (the Tutorial button at the top right opens it again). Each step of a pipeline is a *skill* on a canvas: the pipelines are ready-made, and the skills can be connected into new ones.
 
 | Pipeline | What it does |
 |---|---|
-| **RetiVASC** (ours) | The lab's [TPOT](https://arxiv.org/abs/2411.01403) enhancement first, at full resolution through TPOT-SR's fusion head, then AutoMorph's segmentation and 72 measurements on the enhanced photograph, and an AI report. The quality grade is the original photograph's. |
+| **RetiVASC** (ours) | The lab's [TPOT](https://arxiv.org/abs/2411.01403) enhancement first, at full resolution through TPOT-SR's fusion head. Every later step works on the enhanced photograph: AutoMorph's quality grade; [RRWNet](https://github.com/j-morano/rrwnet)'s arteries, veins and vessels, in place of AutoMorph's segmentation; AutoMorph's optic disc and 72 measurements; the lab's [RetiFlow](https://github.com/Retinal-Research/RetiFlow) branching angles on RRWNet's probability maps; and an AI report. RetinalGPT, the lab's conversational assistant for fundus photographs, and Retify are listed as coming soon. |
 | **AutoMorph** | [AutoMorph](https://github.com/rmaphoh/AutoMorph), a published and validated pipeline, run with all of its models. |
 | **VascX** | The [VascX models](https://huggingface.co/Eyened/vascx) of the Eyened Reading Center: their own field-of-view crop, then vessels, arteries/veins, the optic disc and the fovea, run as their Python packages run them. |
 | **Custom** | A photograph and the skill library, to build your own. |
 
-The input of every pipeline is one photograph or a folder of up to 1000. A folder runs one photograph at a time, can be stopped and resumed, and gives one CSV. Besides the 72 measurements, the CSV has the same simple measures for every pipeline, so AutoMorph and VascX can be compared: the share of the field of view covered by vessels, arteries, veins and the optic disc, and the position of the fovea.
+The input of every pipeline is one photograph or a folder of up to 1000 images. A folder runs one photograph at a time, can be stopped and resumed, and gives one CSV; one photograph gives a CSV too (*Download CSV* at the top after a run), named after the photo, the pipeline and the date. Besides the 72 measurements, the CSV has the same simple measures for every pipeline, so AutoMorph and VascX can be compared: the share of the field of view covered by vessels, arteries, veins and the optic disc, and the position of the fovea; and, from RetiFlow, the number of branching points and their mean angle, for arteries and for veins.
 
 **The AI report** is RetiVASC's own skill: connect any steps to it, and it writes up their results. You can edit its prompt and choose how hard it reasons; the rules it follows (a medical research assistant that uses only the given results, never diagnoses, and declines unrelated requests) are fixed on the server.
 - The lab's language model writes it (GPT-6 Luna through ASU CreateAI). The RetiVASC server forwards only the numbers, never a photograph, keeps the API key, and limits each visitor (one request a second, three at once, $1 a day; $10 a day in all).
 - RetiVASC computes every number; the model only writes. Each number in its text is looked up in the results, and words that judge a value (high, normal…) are flagged, because no reference ranges are given. The numbers it was given are shown next to the report.
+- While the model thinks, the page shows the steps so far and the time each takes; the API sends only the answer, not the model's reasoning. Each visitor sees how much of their quota for the day they have used.
 - After a folder, it writes one report on all the photographs: their quality, the spread of each measurement, and, when two steps measure the same thing (AutoMorph and VascX vessels, say), how they differ photo by photo.
 - A language model can still be wrong. The report is for research, not a diagnosis.
 
@@ -101,6 +103,10 @@ The browser version is not a re-implementation by eye. Every step was compared w
 - **The 72 measurements.** Fed the same segmentations, every value is bit-identical, except the fractal dimension, which agrees to 15 significant digits. This holds on 68 test photographs, including photographs centred on the macula or the disc and photographs where the disc was not found.
 - **End to end.** All 72 values are within 0.4% of the Python results.
 
+**RRWNet** runs as an ONNX file made from its authors' weights by `tools/export_rrwnet.py`, which writes out the network and its preprocessing from their code. The browser's preprocessing agrees with the Python to within 4e-16; the network, with half-precision weights, to within 0.006 in any probability, and 31 of the 1,023,168 values of a sample's probability map fall on the other side of 0.5.
+
+**RetiFlow** runs as a TypeScript port of its Python code (`webui/src/retiflow`), reproducing the SciPy, scikit-image and OpenCV operations it uses, down to the order in which ties are broken. `webui/tests/retiflow.ts` checks each of its steps against the original (`tools/retiflow_reference.py` runs it): on RRWNet's map of a sample photograph, the completed masks, both centrelines, the root, the endpoint repairs and every branching point and angle are identical to the Python's (scikit-image 0.26, SciPy 1.18, OpenCV 5.0).
+
 The browser models store their weights at half precision to halve the download; the arithmetic itself runs at full precision. The optic-disc model keeps full precision, because a one-pixel shift of the disc moves the measurement rings.
 
 ## Speed
@@ -121,6 +127,10 @@ RetiVASC is released under the GNU General Public License v3.0 (see [LICENSE](LI
 The VascX models are not part of RetiVASC. `tools/release.py fetch --vascx` and the public site load them from the authors' repository, [Eyened/vascx](https://huggingface.co/Eyened/vascx), at a fixed revision. Their model cards license them under CC BY-NC 4.0, for non-commercial research only. The VascX preprocessing in `webui/src/vascx/prep.ts` follows retinalysis-fundusprep (AGPL-3.0).
 
 The AI report's language model is not part of RetiVASC either: Qwen3-1.7B by the Qwen team (Alibaba), Apache-2.0, as [onnx-community/Qwen3-1.7B-ONNX](https://huggingface.co/onnx-community/Qwen3-1.7B-ONNX) publishes it; `tools/release.py fetch --llm` and the public site load it from there at a fixed revision.
+
+RRWNet ([j-morano/rrwnet](https://github.com/j-morano/rrwnet), MIT; Morano, Aresta and Bogunović, *Expert Systems with Applications*, 2024) is not part of RetiVASC either. Its weights ([j-morano/rrwnet-hrf](https://huggingface.co/j-morano/rrwnet-hrf)) are CC BY-NC 4.0, for non-commercial use with attribution; `tools/export_rrwnet.py` converts them, and the public site loads the converted copy from Hugging Face. `webui/src/rrwnet/NOTICE.md` keeps the code's notice.
+
+RetiFlow is the lab's ([Retinal-Research/RetiFlow](https://github.com/Retinal-Research/RetiFlow), MIT). Its port in `webui/src/retiflow` includes parts of scikit-image (BSD); `webui/src/retiflow/NOTICE.md` keeps both notices.
 
 TPOT is the lab's model ([Retinal-Research/TPOT-SR](https://github.com/Retinal-Research/TPOT-SR)). `tools/export_tpot.py` turns its two checkpoints into the ONNX files the browser runs. The TPOT-SR repository does not state a licence yet.
 

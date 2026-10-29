@@ -4,14 +4,15 @@ import { DISC } from '../automorph/postprocess';
 import { QUALITY_CLASSES } from '../automorph/types';
 import { GROUP_LABEL, SPECS } from '../engine/specs';
 import { addUpload, sourceName } from '../engine/sources';
-import type { DiscCupValue, NodeValue, QualityValue } from '../engine/values';
+import type { Bifurcation, DiscCupValue, NodeValue, QualityValue } from '../engine/values';
 import { DEFAULT_VIEW, useStudio, type StudioNodeData } from './context';
 import { int, mb, pct, statusText } from './format';
-import { countLabels, isLayer, LAYER_LABEL, layerCanvas, type LayerKind } from './render';
+import { branchCanvas, countLabels, isLayer, LAYER_LABEL, layerCanvas, type LayerKind } from './render';
 import { AnalysisView } from './AnalysisPanel';
 import { FolderBody, FolderFoot } from './FolderPanel';
 import { FeaturesView } from './FeaturesPanel';
 import { Markdown } from './Markdown';
+import { ReportProgress } from './ReportPanel';
 import { NodeMenu } from './NodeMenu';
 import { DEFAULT_REQUEST } from '../engine/prompt';
 import { ANALYSIS_STEPS, SheetProgress, SheetSummaryView } from './SheetPanel';
@@ -53,7 +54,7 @@ function InputMode({ id, type }: { id: string; type: string }) {
   const studio = useStudio();
   return (
     <div className="seg" role="radiogroup" aria-label="Input">
-      {([['input.fundus', 'One photo'], ['input.folder', 'A folder (up to 1000)']] as const).map(([t, label]) => (
+      {([['input.fundus', 'One photo'], ['input.folder', 'A folder (up to 1000 images)']] as const).map(([t, label]) => (
         <button key={t} role="radio" aria-checked={type === t} className={type === t ? 'on' : ''} disabled={studio.running}
                 onClick={() => studio.setType(id, t)}>{label}</button>
       ))}
@@ -177,7 +178,8 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
         );
       }
       case 'automorph.av':
-      case 'vascx.av': {
+      case 'vascx.av':
+      case 'retivasc.rrwnet': {
         const v = out?.kind === 'av' ? out : undefined;
         const c = v ? countLabels(v.map.labels, 4) : [];
         return (
@@ -192,6 +194,40 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
           </>
         );
       }
+      case 'retivasc.retiflow': {
+        const v = out?.kind === 'bifurcations' ? out : undefined;
+        const mean = (points: Bifurcation[]) => (points.length ? `${(points.reduce((a, p) => a + p.angle, 0) / points.length).toFixed(0)}°` : '–');
+        return (
+          <>
+            <Thumb base={v?.base.preview} layers={v ? [branchCanvas(v, 'artery'), branchCanvas(v, 'vein')] : []} width={THUMB_W} height={THUMB_H} />
+            {v && (
+              <div className="meta">
+                <span className="dot" style={{ background: '#ff4b4b' }} /> {v.artery.points.length} · {mean(v.artery.points)}
+                <span className="dot" style={{ background: '#4b8bff' }} /> {v.vein.points.length} · {mean(v.vein.points)}
+                <span className="faint"> branching points · mean angle</span>
+              </div>
+            )}
+            {v?.failed && <div className="meta warn">Not measured: {v.failed}</div>}
+            {v && !v.failed && (v.gradable === false || v.warning) && (
+              <div className="meta warn">{v.warning ? 'Vessel map looks implausible: check it' : 'Photo not gradable: read with care'}</div>
+            )}
+          </>
+        );
+      }
+      case 'retivasc.gpt':
+        return (
+          <div className="soon-card">
+            <strong>Coming soon</strong>
+            <p>RetinalGPT, the lab’s conversational assistant for retinal photographs, will answer questions about the photo here. It is being prepared for RetiVASC.</p>
+          </div>
+        );
+      case 'retivasc.retify':
+        return (
+          <div className="soon-card">
+            <strong>Coming soon</strong>
+            <p>Retify, a module of the lab, is being prepared for RetiVASC and will be added here.</p>
+          </div>
+        );
       case 'automorph.disc':
       case 'vascx.disc': {
         const v = out?.kind === 'disc' ? out : undefined;
@@ -287,9 +323,12 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
                 <option value="high">High · most thorough</option>
               </select>
             </label>
+            {data.state.status === 'running' && (
+              <ReportProgress compact since={data.state.since} text={data.state.text} effort={String(data.params.effort ?? 'medium')} />
+            )}
             {text ? (
               <div className="ai-text"><Markdown text={text} /></div>
-            ) : (
+            ) : data.state.status !== 'running' && (
               <div className="empty">Connect the steps to report on, then Run. After a folder, it writes one report on all photos.</div>
             )}
             {v && (
@@ -367,7 +406,7 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
           {model && <span className="kmodel">{mb(model.bytes)}</span>}
           <NodeMenu id={id} />
         </div>
-        <div className="node-title">{spec.title}</div>
+        <div className="node-title">{spec.title}{spec.soon && <span className="soon">Coming soon</span>}</div>
         <div className="node-sub">{spec.subtitle}</div>
       </header>
       {(spec.inputs.length > 0 || spec.outputs.length > 0) && (

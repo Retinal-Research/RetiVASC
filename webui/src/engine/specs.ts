@@ -2,15 +2,16 @@
 // worker; the canvas only wires them together.
 
 import { engine } from '../runtime/engine';
-import type { EnhanceOutput, FoveaOutput, ImageHandle, LabelOutput, M0Output, M3Output, ModelKey, ModelNeed, Progress, QualityOutput, VascxPrepOutput, VesselOutput } from '../runtime/protocol';
+import type { EnhanceOutput, FoveaOutput, ImageHandle, LabelOutput, M0Output, M3Output, ModelKey, ModelNeed, Progress, QualityOutput, RetiFlowOutput, RRWNetOutput, VascxPrepOutput, VesselOutput } from '../runtime/protocol';
 import type { BatchItem } from './executor';
 import { readSource } from './sources';
+import { fovShare } from './summary';
 import type { M0Value, NodeValue, PortType } from './values';
 import { serverAnalyze, studyPhotos, studySheet } from './study';
 import type { Cohort } from './facts';
 import { aiReport } from './report';
 
-export type NodeGroup = 'input' | 'm0' | 'enhance' | 'm1' | 'm2' | 'm3' | 'vascx' | 'view' | 'ai' | 'server' | 'study';
+export type NodeGroup = 'input' | 'm0' | 'retivasc' | 'm1' | 'm2' | 'm3' | 'vascx' | 'view' | 'ai' | 'server' | 'study';
 
 export interface PortSpec {
   id: string;
@@ -23,6 +24,9 @@ export interface PortSpec {
   /** an input that takes several connections (RunContext.many) */
   multi?: boolean;
 }
+
+/** A vessel map covering less or more of the field of view than this is flagged (RetiFlow's fallback). */
+const VESSEL_SHARE: [number, number] = [0.02, 0.3];
 
 export const acceptsType = (port: PortSpec, type: PortType) => port.type === 'any' || port.type === type || !!port.accepts?.includes(type);
 
@@ -50,6 +54,8 @@ export interface NodeSpec {
   llm?: boolean;
   /** downstream of a Photo folder: runs once, after the last photo, on the results of all of them */
   cohort?: boolean;
+  /** shown in the library but not ready: it never runs */
+  soon?: boolean;
   defaults?: Record<string, unknown>;
   run: (ctx: RunContext) => Promise<Record<string, NodeValue>>;
 }
@@ -57,7 +63,7 @@ export interface NodeSpec {
 export const GROUP_LABEL: Record<NodeGroup, string> = {
   input: 'Input',
   m0: 'AutoMorph M0',
-  enhance: 'RetiVASC',
+  retivasc: 'RetiVASC',
   m1: 'AutoMorph M1',
   m2: 'AutoMorph M2',
   m3: 'AutoMorph M3',
@@ -127,7 +133,7 @@ const specs: NodeSpec[] = [
     type: 'retivasc.enhance',
     title: 'Enhance · TPOT',
     subtitle: "The lab's TPOT enhancement, restored to full resolution",
-    group: 'enhance',
+    group: 'retivasc',
     model: 'tpot',
     inputs: [{ id: 'image', label: 'cropped', type: 'm0' }],
     outputs: [{ id: 'image', label: 'enhanced', type: 'm0' }],
@@ -136,6 +142,85 @@ const specs: NodeSpec[] = [
       const out = await engine.call<EnhanceOutput>({ op: 'enhance', imageId: base.imageId, quick: !!ctx.params.quick }, ctx.progress);
       // the same square and field of view as the input, so every later step works as without enhancement
       return { image: { ...base, kind: 'm0', imageId: out.imageId, preview: out.preview, ms: out.ms, timing: out.timing, made: 'enhanced', before: base.preview, hires: undefined } };
+    },
+  },
+  {
+    type: 'retivasc.rrwnet',
+    title: 'Arteries, veins and vessels · RRWNet',
+    subtitle: 'Multi-task segmentation, refined five times',
+    group: 'retivasc',
+    model: 'rrwnet',
+    inputs: [{ id: 'image', label: 'cropped', type: 'm0' }],
+    outputs: [
+      { id: 'av', label: 'artery/vein', type: 'av' },
+      { id: 'vessel', label: 'vessels', type: 'vessel' },
+      { id: 'maps', label: 'probability maps', type: 'avprob' },
+    ],
+    async run(ctx) {
+      const base = m0Input(ctx);
+      const out = await engine.call<RRWNetOutput>({ op: 'rrwnet', imageId: base.imageId }, ctx.progress);
+      return {
+        av: { kind: 'av', map: { width: 720, height: 720, labels: out.labels }, timing: out.timing, base },
+        vessel: { kind: 'vessel', size: 912, mask: out.vessel, timing: out.timing, base },
+        maps: { kind: 'avprob', size: out.size, data: out.av3, timing: out.timing, base },
+      };
+    },
+  },
+  {
+    type: 'retivasc.retiflow',
+    title: 'Branching angles · RetiFlow',
+    subtitle: 'Bifurcations of the arteries and the veins',
+    group: 'retivasc',
+    inputs: [
+      { id: 'maps', label: 'probability maps', type: 'avprob' },
+      { id: 'quality', label: 'grade', type: 'quality', optional: true },
+    ],
+    outputs: [{ id: 'angles', label: 'branching', type: 'bifurcations' }],
+    // Every photo is measured, gradable or not (Hao, 10-29), with fallbacks: a failure gives no branching
+    // points and says why instead of stopping the run, and an implausible vessel map is flagged.
+    async run(ctx) {
+      const maps = ctx.inputs.maps;
+      if (maps?.kind !== 'avprob') throw new Error('connect the probability maps of RRWNet');
+      const quality = ctx.inputs.quality;
+      const gradable = quality?.kind === 'quality' ? quality.result.gradable : undefined;
+      let vessels = 0;
+      for (let i = 2; i < maps.data.length; i += 3) if (maps.data[i] > 127) vessels++;
+      const share = fovShare(vessels, maps.size, maps.base);
+      const warning = share < VESSEL_SHARE[0] || share > VESSEL_SHARE[1]
+        ? `the vessels cover ${(share * 100).toFixed(1)}% of the field of view, outside the usual ${VESSEL_SHARE[0] * 100}–${VESSEL_SHARE[1] * 100}%: check the photo and the segmentation`
+        : undefined;
+      const empty = { points: [], centerline: new Uint8Array(maps.size * maps.size) };
+      try {
+        const out = await engine.call<RetiFlowOutput>({ op: 'retiflow', size: maps.size, av3: maps.data.slice() }, ctx.progress);
+        return { angles: { kind: 'bifurcations', size: maps.size, root: out.root, artery: out.artery, vein: out.vein, ms: out.ms, base: maps.base, gradable, warning } };
+      } catch (e) {
+        const failed = e instanceof Error ? e.message : String(e);
+        return { angles: { kind: 'bifurcations', size: maps.size, root: [maps.size / 2, maps.size / 2], artery: empty, vein: empty, ms: 0, base: maps.base, gradable, warning, failed } };
+      }
+    },
+  },
+  {
+    type: 'retivasc.gpt',
+    title: 'RetinalGPT',
+    subtitle: 'Ask about the photograph',
+    group: 'retivasc',
+    soon: true,
+    inputs: [{ id: 'image', label: 'photo', type: 'fundus', accepts: ['m0'] }],
+    outputs: [],
+    async run() {
+      return {};
+    },
+  },
+  {
+    type: 'retivasc.retify',
+    title: 'Retify',
+    subtitle: 'A RetiVASC module in development',
+    group: 'retivasc',
+    soon: true,
+    inputs: [{ id: 'image', label: 'photo', type: 'fundus', accepts: ['m0'] }],
+    outputs: [],
+    async run() {
+      return {};
     },
   },
   {

@@ -1,7 +1,7 @@
 // Turns results into drawable layers and paints them over the M0 photo.
 
 import { AV, DISC } from '../automorph/postprocess';
-import type { ArteryVeinValue, DiscCupValue, FoveaValue, NodeValue, VesselValue } from '../engine/values';
+import type { ArteryVeinValue, BifurcationsValue, DiscCupValue, FoveaValue, NodeValue, VesselValue } from '../engine/values';
 
 export type LayerKind = 'vessel' | 'av' | 'disc' | 'fovea';
 export type LayerValue = VesselValue | ArteryVeinValue | DiscCupValue | FoveaValue;
@@ -93,6 +93,49 @@ export function layerCanvas(value: LayerValue): HTMLCanvasElement {
     });
   }
   cache.set(value, canvas);
+  return canvas;
+}
+
+export type BranchKind = 'artery' | 'vein';
+export const BRANCH_LABEL: Record<BranchKind, string> = { artery: 'Arteries', vein: 'Veins' };
+export const BRANCH_LEGEND: Array<[string, string]> = [['Artery centreline', '#ff4b4b'], ['Vein centreline', '#4b8bff'], ['Branching point', '#ffd84a'], ['Root', '#3ddc84']];
+
+const branchCache = new WeakMap<BifurcationsValue, Partial<Record<BranchKind, HTMLCanvasElement>>>();
+
+/** RetiFlow's result for one class: its centreline, each branching point with the directions of its two
+ *  daughter vessels, and the root the traversal starts from; at twice the map's resolution, so the marks
+ *  stay sharp. */
+export function branchCanvas(value: BifurcationsValue, which: BranchKind): HTMLCanvasElement {
+  const held = branchCache.get(value) ?? {};
+  const hit = held[which];
+  if (hit) return hit;
+  const n = value.size, s = 2, { centerline, points } = value[which];
+  const [r, g, b] = which === 'artery' ? [255, 75, 75] : [75, 139, 255];
+  const canvas = canvasFrom(n * s, n * s, (px) => {
+    for (let i = 0; i < centerline.length; i++) {
+      if (!centerline[i]) continue;
+      const y = Math.floor(i / n) * s, x = (i % n) * s;
+      for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) put(px, (y + dy) * n * s + x + dx, r, g, b, 240);
+    }
+  });
+  const ctx = canvas.getContext('2d')!;
+  for (const p of points) {
+    const cx = (p.x + 0.5) * s, cy = (p.y + 0.5) * s;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.lineWidth = 1.5;
+    for (const [x, y] of p.children) {
+      const dx = x - p.x, dy = y - p.y, len = Math.hypot(dx, dy) || 1;
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + (dx / len) * 16, cy + (dy / len) * 16); ctx.stroke();
+    }
+    ctx.fillStyle = '#ffd84a';
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.beginPath(); ctx.arc(cx, cy, 4, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+  }
+  const [ry, rx] = value.root;
+  ctx.strokeStyle = '#3ddc84';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.arc((rx + 0.5) * s, (ry + 0.5) * s, 9, 0, 2 * Math.PI); ctx.stroke();
+  branchCache.set(value, { ...held, [which]: canvas });
   return canvas;
 }
 

@@ -16,6 +16,8 @@ webui/node_modules/
 webui/dist/
 tools/ref/
 tools/tpot_ref/
+tools/rrwnet_ref/
+tools/retiflow_ref/
 tools/official/
 tools/official_retify/
 tools/.venv/

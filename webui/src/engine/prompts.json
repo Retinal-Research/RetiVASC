@@ -64,6 +64,10 @@
     "statistics": {
       "en": "Folder statistics: n is the number of photos with a value; SD the standard deviation; for two steps that measure the same thing, the difference is the second minus the first, photo by photo.",
       "zh": "文件夹统计：n 是有该数值的照片数；标准差即 SD；两个步骤测量同一项时，差值是逐张照片的后者减前者。"
+    },
+    "branching": {
+      "en": "Branching points and angles: RetiFlow finds where an artery or a vein divides into two daughter vessels, on the centrelines of the artery and vein segmentation, and measures the angle between the two daughters. A branching point counts when that angle is between 20° and 120°; arteries and veins are measured separately.",
+      "zh": "分叉点和分叉角：RetiFlow 在动脉和静脉分割的中心线上找出一支血管分成两支子血管的位置，并测量两支子血管之间的夹角。夹角在 20° 到 120° 之间的才计为分叉点；动脉和静脉分开测量。"
     }
   },
   "results": {

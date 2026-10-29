@@ -7,6 +7,7 @@ import type { WorkflowFile } from '../engine/workflows';
 import type { Appearance, Theme } from './appearance';
 import { AppearanceMenu } from './AppearanceMenu';
 import { Logo } from './Logo';
+import { TourButton } from './Tour';
 
 const LAB = 'Geometry Systems Lab';
 const UNIVERSITY = 'Arizona State University';
@@ -56,9 +57,11 @@ interface Props {
   appearance: Appearance;
   theme: Theme;
   onAppearance: (a: Appearance) => void;
+  /** open the tutorial */
+  onTour: () => void;
 }
 
-export function Home({ pipelines, missing, samples, onStart, appearance, theme, onAppearance }: Props) {
+export function Home({ pipelines, missing, samples, onStart, appearance, theme, onAppearance, onTour }: Props) {
   const [chosen, setChosen] = useState<string>();
   const ready = pipelines.filter((p) => !missing(p));
   const pick = ready.find((p) => p.id === chosen) ?? ready[0];
@@ -68,7 +71,10 @@ export function Home({ pipelines, missing, samples, onStart, appearance, theme, 
     <div className="home">
       <header className="home-top">
         <span className="home-mark"><Logo variant="mark" size={22} />RetiVASC</span>
-        <AppearanceMenu appearance={appearance} theme={theme} onChange={onAppearance} />
+        <div className="home-tools">
+          <TourButton onClick={onTour} />
+          <AppearanceMenu appearance={appearance} theme={theme} onChange={onAppearance} />
+        </div>
       </header>
 
       <section className="hero">
@@ -77,8 +83,9 @@ export function Home({ pipelines, missing, samples, onStart, appearance, theme, 
         <p className="hero-sub">{SUBTITLE}</p>
         <p className="hero-lab">{LAB} · {UNIVERSITY}</p>
         <p className="hero-what">
-          RetiVASC enhances colour fundus photographs and measures their retinal blood vessels: image quality, vessels, arteries and veins,
-          the optic disc and 72 vascular phenotypes. An LLM writes up the measurements as a report. One photograph or a folder of up to 1000.
+          RetiVASC enhances colour fundus photographs and measures their retinal blood vessels: image quality, arteries, veins and vessels,
+          the optic disc, branching angles and 72 vascular phenotypes. An LLM writes up the measurements as a report. One photograph or a
+          folder of up to 1000 images.
         </p>
         <div className="strip">
           {samples.slice(0, 6).map((s) => (
@@ -124,6 +131,8 @@ export function Home({ pipelines, missing, samples, onStart, appearance, theme, 
         <span>© {new Date().getFullYear()} {LAB}, {UNIVERSITY}</span>
         <span>
           Models: <a href="https://github.com/rmaphoh/AutoMorph" target="_blank" rel="noreferrer">AutoMorph</a> (Apache-2.0)
+          {' · '}<a href="https://github.com/j-morano/rrwnet" target="_blank" rel="noreferrer">RRWNet</a> (weights CC BY-NC 4.0)
+          {' · '}<a href="https://github.com/Retinal-Research/RetiFlow" target="_blank" rel="noreferrer">RetiFlow</a> (MIT)
           {pipelines.some((p) => p.id === 'vascx') && <> · <a href="https://huggingface.co/Eyened/vascx" target="_blank" rel="noreferrer">VascX</a> (CC BY-NC 4.0)</>}
         </span>
         <span title={samples.map((s) => `${s.label}: ${s.author}, ${s.license}`).join('\n')}>Sample photographs: Wikimedia Commons (hover for credits)</span>

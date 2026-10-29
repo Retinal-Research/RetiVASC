@@ -5,8 +5,9 @@
 # Hugging Face model repository at a version tag, https://huggingface.co/<owner>/<repo>/resolve/<tag>/), which must
 # allow cross-origin requests. Without that variable the job is skipped.
 # VascX loads from its authors' repository on Hugging Face at a fixed revision (RETIVASC_VASCX_URL
-# overrides it). TPOT, the lab's enhancement, loads from RETIVASC_TPOT_URL; without it the site
-# says the enhancement is not installed, and the other pipelines work. The AI report's language model
+# overrides it). TPOT, the lab's enhancement, loads from RETIVASC_TPOT_URL, and RRWNet (the RetiVASC pipeline's
+# artery/vein/vessel segmentation, weights CC BY-NC 4.0) from RETIVASC_RRWNET_URL; without them the site says
+# those models are not installed, and the other pipelines work. The AI report's language model
 # (Qwen3-1.7B, Apache-2.0) loads from onnx-community on Hugging Face at a fixed revision (RETIVASC_LLM_URL
 # overrides it); it is downloaded only when a report is written.
 # RETIVASC_REPORT_URL points the AI report at the lab's report service (a RetiVASC server reached through
@@ -44,6 +45,7 @@ jobs:
           VITE_MODELS_URL: ${{ vars.RETIVASC_MODELS_URL }}
           VITE_VASCX_URL: ${{ vars.RETIVASC_VASCX_URL || 'https://huggingface.co/Eyened/vascx/resolve/383bcf530510a7c8d7ad7bc34ec23f48c87ce29d/' }}
           VITE_TPOT_URL: ${{ vars.RETIVASC_TPOT_URL }}
+          VITE_RRWNET_URL: ${{ vars.RETIVASC_RRWNET_URL }}
           VITE_REPORT_URL: ${{ vars.RETIVASC_REPORT_URL }}
           VITE_LLM_URL: ${{ vars.RETIVASC_LLM_URL || 'https://huggingface.co/onnx-community/Qwen3-1.7B-ONNX/resolve/3231b522c6e703b2f9b3cd8ea27426a1289a02f2/' }}
         run: |
@@ -52,8 +54,9 @@ jobs:
           npx vite build
           find dist/models -name '*.onnx' -delete   # never part of the site, even if present
           rm -f dist/models/llm/tokenizer.json       # comes with the language model, from its host
-          # without a host for TPOT the site must not claim to have it
+          # without a host for TPOT or RRWNet the site must not claim to have them
           if [ -z "$VITE_TPOT_URL" ]; then rm -f dist/models/tpot/manifest.json; fi
+          if [ -z "$VITE_RRWNET_URL" ]; then rm -f dist/models/rrwnet/manifest.json; fi
       - name: Check that the models are reachable from a browser
         run: |
           check() { curl -sfIL -H 'Origin: https://example.github.io' "$1" | grep -qi '^access-control-allow-origin' \
@@ -61,6 +64,7 @@ jobs:
           url="${{ vars.RETIVASC_MODELS_URL }}"; check "${url%/}/disc_cup/disc_cup.onnx"
           url="${{ vars.RETIVASC_VASCX_URL || 'https://huggingface.co/Eyened/vascx/resolve/383bcf530510a7c8d7ad7bc34ec23f48c87ce29d/' }}"; check "${url%/}/disc/disc_may26.onnx"
           url="${{ vars.RETIVASC_TPOT_URL }}"; if [ -n "$url" ]; then check "${url%/}/tpot.onnx"; fi
+          url="${{ vars.RETIVASC_RRWNET_URL }}"; if [ -n "$url" ]; then check "${url%/}/rrwnet.onnx"; fi
           url="${{ vars.RETIVASC_LLM_URL || 'https://huggingface.co/onnx-community/Qwen3-1.7B-ONNX/resolve/3231b522c6e703b2f9b3cd8ea27426a1289a02f2/' }}"; check "${url%/}/tokenizer.json"; check "${url%/}/onnx/model_q4f16.onnx"
       - uses: actions/upload-pages-artifact@v3
         with:
