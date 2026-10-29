@@ -140,6 +140,8 @@ export function ReportView({ value, workflow }: { value: ReportValue; workflow: 
       </div>
       {value.writer === 'online' && <QuotaBar refresh={`${value.chat}:${value.qa.length}:${answering === undefined}`} />}
       <Markdown text={value.text} />
+      {value.table && <p className="faint">It also wrote a table for the Results table step after it ({value.table.rows.length} rows); its numbers are checked with the text’s.</p>}
+      {value.tableError && <p className="ai-check">A table was asked for by the step after it, but {value.tableError}.</p>}
       <Checks unchecked={value.unchecked} judged={value.judged} />
 
       <section className="isec">

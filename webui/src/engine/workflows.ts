@@ -56,6 +56,7 @@ const automorph: WorkflowFile = {
     { id: 'disc', type: 'automorph.disc', position: { x: 690, y: 1045 } },
     { id: 'view', type: 'view.overlay', position: { x: 1060, y: 460 } },
     { id: 'm3', type: 'automorph.m3', position: { x: 1060, y: -40 } },
+    { id: 'table', type: 'view.table', position: { x: 1430, y: -40 } },
   ],
   edges: [
     link('photo', 'image', 'm0', 'image'),
@@ -72,6 +73,8 @@ const automorph: WorkflowFile = {
     link('av', 'av', 'm3', 'av'),
     link('disc', 'disc', 'm3', 'disc'),
     link('m1', 'quality', 'm3', 'quality'),
+    link('m1', 'quality', 'table', 'results'),
+    link('m3', 'features', 'table', 'results'),
   ],
 };
 
@@ -95,6 +98,7 @@ const retivasc: WorkflowFile = {
     { id: 'retiflow', type: 'retivasc.retiflow', position: { x: 1410, y: 480 } },
     { id: 'view', type: 'view.overlay', position: { x: 1410, y: 860 } },
     { id: 'report', type: 'ai.report', position: { x: 1790, y: -20 } },
+    { id: 'table', type: 'view.table', position: { x: 1790, y: 520 } },
   ],
   edges: [
     link('photo', 'image', 'm0', 'image'),
@@ -116,6 +120,9 @@ const retivasc: WorkflowFile = {
     link('m1', 'quality', 'report', 'results'),
     link('m3', 'features', 'report', 'results'),
     link('retiflow', 'angles', 'report', 'results'),
+    link('m1', 'quality', 'table', 'results'),
+    link('m3', 'features', 'table', 'results'),
+    link('retiflow', 'angles', 'table', 'results'),
   ],
 };
 
@@ -134,6 +141,7 @@ const vascx: WorkflowFile = {
     { id: 'disc', type: 'vascx.disc', position: { x: 690, y: 760 } },
     { id: 'fovea', type: 'vascx.fovea', position: { x: 690, y: 1140 } },
     { id: 'view', type: 'view.overlay', position: { x: 1060, y: 520 } },
+    { id: 'table', type: 'view.table', position: { x: 1060, y: 0 } },
   ],
   edges: [
     link('photo', 'image', 'prep', 'image'),
@@ -145,6 +153,10 @@ const vascx: WorkflowFile = {
     link('av', 'av', 'view', 'av'),
     link('disc', 'disc', 'view', 'disc'),
     link('fovea', 'fovea', 'view', 'fovea'),
+    link('vessel', 'vessel', 'table', 'results'),
+    link('av', 'av', 'table', 'results'),
+    link('disc', 'disc', 'table', 'results'),
+    link('fovea', 'fovea', 'table', 'results'),
   ],
 };
 

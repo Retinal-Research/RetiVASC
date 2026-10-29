@@ -42,11 +42,9 @@ interface Props {
   onHome: () => void;
   /** open the tutorial */
   onTour: () => void;
-  /** after a run on one photo: download its numbers as a CSV file */
-  onCsv?: () => void;
 }
 
-export function TopBar({ name, engine, engineError, gpu, onGpu, preload, onPreload, running, stopping, lastRun, onRun, onStop, onSave, onOpen, appearance, theme, onAppearance, account, onSignOut, onHome, onTour, onCsv }: Props) {
+export function TopBar({ name, engine, engineError, gpu, onGpu, preload, onPreload, running, stopping, lastRun, onRun, onStop, onSave, onOpen, appearance, theme, onAppearance, account, onSignOut, onHome, onTour }: Props) {
   return (
     <header className="topbar">
       <button className="brand" onClick={onHome} title="Home page">
@@ -84,7 +82,6 @@ export function TopBar({ name, engine, engineError, gpu, onGpu, preload, onPrelo
                   : 'Nothing changed'}
           </span>
         )}
-        {onCsv && <button className="btn csv" onClick={onCsv} title="Download this photo's results (grades, features, measures) as a CSV file">Download CSV</button>}
         <button className="btn" onClick={onSave} title="Download this workflow as a file">Save</button>
         <label className="btn" title="Open a saved workflow file">
           Open

@@ -167,5 +167,23 @@ export interface BifurcationsValue {
 /** The AI report: the language model's text and the numbers it was given (engine/report.ts). */
 export type ReportValue = import('./report').ReportValue;
 
-export type NodeValue = FundusValue | M0Value | QualityValue | VesselValue | ArteryVeinValue | DiscCupValue | FoveaValue | RunValue | SheetValue | AnalysisValue | FeaturesValue | AVProbValue | BifurcationsValue | ReportValue;
+/** One table: a title, column names, and rows of cells as text (numbers written as their step wrote them). */
+export interface Table {
+  title: string;
+  /** where it comes from, and caveats */
+  note?: string;
+  columns: string[];
+  rows: string[][];
+}
+
+/** The results table step: the numbers of the steps connected to it, one row per photo, and any table an
+ *  AI report connected to it wrote; to view and to download as CSV. */
+export interface TableValue {
+  kind: 'table';
+  /** the photo or folder, for file names */
+  name: string;
+  tables: Table[];
+}
+
+export type NodeValue = FundusValue | M0Value | QualityValue | VesselValue | ArteryVeinValue | DiscCupValue | FoveaValue | RunValue | SheetValue | AnalysisValue | FeaturesValue | AVProbValue | BifurcationsValue | ReportValue | TableValue;
 export type PortType = NodeValue['kind'];

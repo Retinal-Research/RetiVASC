@@ -24,7 +24,7 @@ def client(tmp_path, **report) -> TestClient:
 
 def test_the_server_builds_the_browsers_prompt():
     for case in FIXTURE:
-        assert report_prompt(case["sheet"], case["request"]) == case["prompt"]
+        assert report_prompt(case["sheet"], case["request"], case.get("needs", [])) == case["prompt"]
 
 
 def test_off_unless_set_up(tmp_path):
@@ -64,7 +64,8 @@ def test_only_fact_sheets(tmp_path):
                 {"facts": {**SHEET, "groups": [{"title": "x" * 500, "rows": [["a", "b"]]}]}},
                 {"facts": SHEET, "report": "r", "question": "q" * 301},
                 {"facts": SHEET, "report": "r", "question": "q", "history": [{"q": "q", "a": "a"}] * 6},
-                {"facts": SHEET, "prompt": "p" * 1501}, {"facts": SHEET, "effort": "max"}]:
+                {"facts": SHEET, "prompt": "p" * 1501}, {"facts": SHEET, "effort": "max"},
+                {"facts": SHEET, "needs": ["poem"]}, {"facts": SHEET, "needs": "table"}]:
         assert c.post("/api/report", json=bad).status_code == 400, bad
 
 

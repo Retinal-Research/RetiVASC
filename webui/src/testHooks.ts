@@ -29,6 +29,9 @@ export function exposeTestHooks(h: Hooks): void {
     llm,
     // a library entry by position or by id ('retivasc', 'automorph', 'vascx', 'custom')
     load: (which: number | string) => h.load(typeof which === 'string' ? WORKFLOWS.find((w) => w.id === which) ?? WORKFLOWS[0] : WORKFLOWS[which], false),
+    // a library entry as data, to change and load (e.g. with one more connection)
+    workflow: (id: string) => structuredClone(WORKFLOWS.find((w) => w.id === id)),
+    loadFile: (wf: (typeof WORKFLOWS)[number]) => h.load(wf, false),
     setSource: (id: string, source: string) => h.setParams(id, { source }),
     setParams: (id: string, params: Record<string, unknown>) => h.setParams(id, params),
     run: () => h.run(),
@@ -58,8 +61,10 @@ export function exposeTestHooks(h: Hooks): void {
         case 'bifurcations':
           return { kind: v.kind, size: v.size, root: v.root, ms: v.ms, gradable: v.gradable, warning: v.warning, failed: v.failed,
                    artery: v.artery.points.map((p) => p.angle), vein: v.vein.points.map((p) => p.angle) };
+        case 'table':
+          return { kind: v.kind, name: v.name, tables: v.tables };
         case 'report':
-          return { kind: v.kind, text: v.text, writer: v.writer, model: v.model, ms: v.ms, unchecked: v.unchecked, judged: v.judged, scope: v.facts.scope, facts: v.facts.groups, qa: v.qa, result: v.result };
+          return { kind: v.kind, text: v.text, writer: v.writer, model: v.model, ms: v.ms, unchecked: v.unchecked, judged: v.judged, scope: v.facts.scope, facts: v.facts.groups, qa: v.qa, result: v.result, table: v.table, tableError: v.tableError };
       }
     },
   };

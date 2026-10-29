@@ -10,6 +10,7 @@ import type { M0Value, NodeValue, PortType } from './values';
 import { serverAnalyze, studyPhotos, studySheet } from './study';
 import type { Cohort } from './facts';
 import { aiReport } from './report';
+import { resultsTable } from './table';
 
 export type NodeGroup = 'input' | 'm0' | 'retivasc' | 'm1' | 'm2' | 'm3' | 'vascx' | 'view' | 'ai' | 'server' | 'study';
 
@@ -40,6 +41,8 @@ export interface RunContext {
   many?: Record<string, Array<{ from: string; type: string; value: NodeValue }>>;
   /** after a folder run, for a step that reports on all of its photos (NodeSpec.cohort) */
   cohort?: Cohort;
+  /** the types of the steps this one's outputs are connected to, so a step can give them what they need */
+  downstream?: string[];
 }
 
 export interface NodeSpec {
@@ -424,6 +427,17 @@ const specs: NodeSpec[] = [
     outputs: [{ id: 'sheet', label: 'sheet', type: 'sheet' }],
     defaults: { outName: 'automorph_results_v1.xlsx', strict: false },
     run: studySheet,
+  },
+  {
+    type: 'view.table',
+    title: 'Results table',
+    subtitle: 'The numbers of the steps connected to it; download as CSV',
+    group: 'view',
+    // after a folder: one row per photo; an AI report connected to it also writes a table for it
+    cohort: true,
+    inputs: [{ id: 'results', label: 'results of any steps', type: 'any', multi: true }],
+    outputs: [{ id: 'table', label: 'table', type: 'table' }],
+    run: resultsTable,
   },
   {
     type: 'view.overlay',

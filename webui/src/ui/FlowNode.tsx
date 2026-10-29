@@ -13,6 +13,7 @@ import { FolderBody, FolderFoot } from './FolderPanel';
 import { FeaturesView } from './FeaturesPanel';
 import { Markdown } from './Markdown';
 import { ReportProgress } from './ReportPanel';
+import { TableView } from './TablePanel';
 import { NodeMenu } from './NodeMenu';
 import { DEFAULT_REQUEST } from '../engine/prompt';
 import { ANALYSIS_STEPS, SheetProgress, SheetSummaryView } from './SheetPanel';
@@ -213,6 +214,11 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
             )}
           </>
         );
+      }
+      case 'view.table': {
+        const v = out?.kind === 'table' ? out : undefined;
+        return v ? <TableView value={v} workflow={studio.workflow} />
+          : <div className="empty">Connect steps with results (or an AI report), then Run</div>;
       }
       case 'retivasc.gpt':
         return (

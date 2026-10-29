@@ -13,6 +13,7 @@ import { AnalysisView } from './AnalysisPanel';
 import { FolderInspector } from './FolderPanel';
 import { FeaturesView } from './FeaturesPanel';
 import { Markdown } from './Markdown';
+import { TableView } from './TablePanel';
 import { QuotaBar, ReportProgress, ReportView } from './ReportPanel';
 import { ANALYSIS_STEPS, SheetProgress, SheetSummaryView } from './SheetPanel';
 
@@ -203,6 +204,21 @@ export function Inspector({ node }: { node?: StudioNode }) {
             </>
           )}
           {st.status === 'error' && <p className="error">{st.message}</p>}
+        </div>
+      </aside>
+    );
+  }
+  if (node.data.type === 'view.table') {
+    return (
+      <aside className="inspector">
+        {head}
+        <div className="iscroll">
+          {out?.kind === 'table' ? <TableView value={out} workflow={studio.workflow} full /> : (
+            <p className="footnote">Connect any steps with results to this one and press Run: it shows their numbers as a table, one row per
+              photo, to download as CSV. After a Photo folder it has a row for every photo. Connect an AI report to it, and the report also
+              writes a table of what it found, from the same numbers.</p>
+          )}
+          {node.data.state.status === 'error' && <p className="error">{node.data.state.message}</p>}
         </div>
       </aside>
     );

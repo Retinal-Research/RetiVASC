@@ -174,13 +174,16 @@ def facts_text(sheet: dict) -> str:
     return "\n\n".join(blocks)
 
 
-def report_prompt(sheet: dict, request: str) -> str:
-    """The results, their definitions, and the person's request (the default one when it is empty)."""
+def report_prompt(sheet: dict, request: str, needs: list[str] = ()) -> str:
+    """The results, their definitions, the person's request (the default one when it is empty), and what
+    the steps after the report need from it (a table): fixed texts from prompts.json, never the page's."""
     l = sheet["language"]
     parts = [f"{PROMPTS['results'][sheet['scope']][l]}:", facts_text(sheet) if sheet["groups"] else PROMPTS["none"]]
     if sheet["terms"]:
         parts += ["", f"{PROMPTS['definitions'][l]}:", "\n".join(f"- {PROMPTS['terms'][t][l]}" for t in sheet["terms"])]
     parts += ["", f"{PROMPTS['heading']}:", request.strip() or PROMPTS["request"][sheet["scope"]]]
+    for n in needs:
+        parts += ["", PROMPTS["needs"][n][l]]
     return "\n".join(parts).strip()
 
 
@@ -195,8 +198,11 @@ def messages_of(body: dict) -> tuple[str, list[dict], str]:
     effort = body.get("effort") or "medium"
     if effort not in EFFORTS:
         raise HTTPException(400, "effort: low, medium or high")
+    needs = body.get("needs") or []
+    if not isinstance(needs, list) or len(needs) > len(PROMPTS["needs"]) or any(n not in PROMPTS["needs"] for n in needs):
+        raise HTTPException(400, f"needs: any of {', '.join(PROMPTS['needs'])}")
     l = sheet["language"]
-    messages = [{"role": "user", "content": report_prompt(sheet, request)}]
+    messages = [{"role": "user", "content": report_prompt(sheet, request, needs)}]
     question = body.get("question")
     if question is not None:
         messages.append({"role": "assistant", "content": _text(body.get("report"), 8000, "report")})

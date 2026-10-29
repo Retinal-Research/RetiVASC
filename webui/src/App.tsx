@@ -38,7 +38,6 @@ import { api } from './server/api';
 import { exposeTestHooks } from './testHooks';
 import { llm } from './llm/llm';
 import { stopWriting } from './engine/report';
-import { downloadCsv } from './engine/csv';
 import type { LlmManifest, LlmStatus } from './llm/protocol';
 import { Grip } from './ui/Grip';
 import { isNum, useRemembered } from './remember';
@@ -488,15 +487,6 @@ export function App() {
     void (id ? flow.fitView({ nodes: [{ id }], padding: 0.5, duration: 450, maxZoom: 1.1 }) : flow.fitView({ padding: 0.06, duration: 450, maxZoom: 1 }));
   }, [flow]);
 
-  // after a run on one photo, its numbers as a CSV file (a folder has its own, on the folder step)
-  const photoCsv = (() => {
-    if (!lastRun || running || nodes.some((n) => n.data.type === 'input.folder')) return undefined;
-    const photo = nodes.map((n) => executor.outputs(n.id)?.image).find((v) => v?.kind === 'fundus');
-    const record = executor.photoRecord(nodes.map((n) => ({ id: n.id, type: n.data.type, params: n.data.params })), photo?.kind === 'fundus' ? photo.name : 'photo', lastRun.ms);
-    const any = Object.keys(record.quality).length + Object.keys(record.features).length + Object.keys(record.measures ?? {}).length;
-    return any ? () => downloadCsv([record], record.path, name) : undefined;
-  })();
-
   const selectedNode = nodes.find((n) => n.id === selected);
   const browserNode = nodes.find((n) => n.data.state.status === 'running' && SPECS[n.data.type]?.group !== 'server');
 
@@ -520,7 +510,7 @@ export function App() {
     <>
     <StudioContext.Provider value={studio}>
       <div className="app" style={{ '--inspector-w': `${inspectorW}px` } as CSSProperties}>
-        <TopBar name={name} engine={engineInfo} engineError={engineError} gpu={gpu} onGpu={switchGpu} preload={preloadState} onPreload={() => void preload()} running={running} stopping={stopping} lastRun={lastRun} onRun={() => void run()} onStop={() => { setStopping(true); executor.stop(); stopWriting(); }} onSave={save} onOpen={(f) => void open(f)} appearance={appearance} theme={theme} onAppearance={setAppearance} account={account} onSignOut={() => void api.logout().finally(() => setAccount({ mode: 'signin' }))} onHome={() => go('home')} onTour={() => setTour(tourFrom('studio'))} onCsv={photoCsv} />
+        <TopBar name={name} engine={engineInfo} engineError={engineError} gpu={gpu} onGpu={switchGpu} preload={preloadState} onPreload={() => void preload()} running={running} stopping={stopping} lastRun={lastRun} onRun={() => void run()} onStop={() => { setStopping(true); executor.stop(); stopWriting(); }} onSave={save} onOpen={(f) => void open(f)} appearance={appearance} theme={theme} onAppearance={setAppearance} account={account} onSignOut={() => void api.logout().finally(() => setAccount({ mode: 'signin' }))} onHome={() => go('home')} onTour={() => setTour(tourFrom('studio'))} />
         <Sidebar current={name} onLoad={(wf) => load(wf)} onAdd={(t) => addNode(t)} server={account.mode === 'ready'} />
         <main className="canvas" onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} onDrop={onDrop}>
           <ReactFlow<StudioNode, Edge>

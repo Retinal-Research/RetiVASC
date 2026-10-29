@@ -68,6 +68,8 @@ r = await page.evaluate(() => window.__studio.result('report'));
 show(r?.text ?? '(none)');
 ok(summary.errors === 0 && r?.scope === 'folder', `folder report after ${summary.photos} photos, ${((Date.now() - t) / 1000).toFixed(1)} s`);
 console.log(`     numbers not found in the results: ${r?.unchecked.length ? r.unchecked.join(', ') : 'none'}; judging words: ${r?.judged.length ? r.judged.join(', ') : 'none'}`);
+const folderTable = (await page.evaluate(() => window.__studio.result('table')))?.tables?.[0];
+ok(folderTable?.rows.length === 3 && folderTable.columns.includes('Seconds'), `the Results table has a row per photo (${folderTable?.rows.length} rows × ${folderTable?.columns.length} columns)`);
 await page.click('.react-flow__node[data-id="report"]');
 await page.screenshot({ path: join(SHOTS, 'report_folder.png') });
 
