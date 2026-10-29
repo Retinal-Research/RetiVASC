@@ -19,7 +19,7 @@ import { loadSamples, type Sample } from './engine/sources';
 import { acceptsType, modelsUsed, SPECS, type PortSpec } from './engine/specs';
 import type { PortType } from './engine/values';
 import { WORKFLOWS, type WorkflowFile } from './engine/workflows';
-import { engine } from './runtime/engine';
+import { engine, siteModels } from './runtime/engine';
 import type { EngineInfo, GpuChoice, ModelKey, ModelNeed, ModelStatus, Progress } from './runtime/protocol';
 import { StudioContext, type Studio, type StudioNodeData, type ViewSettings } from './ui/context';
 import { FlowNode, type StudioNode } from './ui/FlowNode';
@@ -28,6 +28,7 @@ import { Home } from './ui/Home';
 import { Inspector } from './ui/Inspector';
 import { DRAG_TYPE, Sidebar } from './ui/Sidebar';
 import { TopBar, type PreloadState } from './ui/TopBar';
+import { Launch } from './ui/Launch';
 import { firstVisit, Tour, tourFrom, type TourStep, type TourView } from './ui/Tour';
 import { mb } from './ui/format';
 import { useAppearance } from './ui/appearance';
@@ -126,6 +127,8 @@ export function App() {
   const [tour, setTour] = useState<TourStep[] | undefined>(() => (firstVisit() ? tourFrom(viewOf()) : undefined));
   const [engineInfo, setEngineInfo] = useState<EngineInfo>();
   const [engineError, setEngineError] = useState<string>();
+  // the models this site has, read before the engine starts (for the home page)
+  const [installed, setInstalled] = useState<Set<string>>();
   const [gpu, setGpu] = useState<GpuChoice>(engine.gpu);
   const [modelStatus, setModelStatus] = useState<ModelStatus>();
   const [preloading, setPreloading] = useState<Progress>();
@@ -138,6 +141,8 @@ export function App() {
   const [lastRun, setLastRun] = useState<RunSummary>();
   const [name, setName] = useState(FIRST.name);
   const [view, setViewMode] = useState<View>(viewOf);
+  // the launch screen while the engine starts, each time the canvas opens
+  const [launching, setLaunching] = useState(() => viewOf() === 'studio');
   const [inspectorW, setInspectorW] = useRemembered('inspector-width', INSPECTOR_W, isNum);
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
@@ -184,7 +189,7 @@ export function App() {
     busy.current = true;
     setRunning(true);
     try {
-      await engine.ready;
+      await engine.boot();
       const graphNodes = nodesRef.current.map((n) => ({ id: n.id, type: n.data.type, params: n.data.params }));
       const graphEdges = edgesRef.current.map((e) => ({ source: e.source, sourceHandle: e.sourceHandle ?? '', target: e.target, targetHandle: e.targetHandle ?? '' }));
       const only = target ? upstream(edgesRef.current, target) : undefined;
@@ -228,15 +233,22 @@ export function App() {
   );
 
   useEffect(() => {
-    engine.ready.then((info) => { setEngineInfo(info); void refreshModels(); }, (e: Error) => setEngineError(e.message));
+    void siteModels().then(setInstalled);
     loadSamples().then(setSamples, () => setSamples([]));
     void llm.manifest.then((m) => setLlmManifest(m ?? null));
     load(FIRST);
   }, []);
 
+  // the engine starts with the canvas, behind the launch screen
+  useEffect(() => {
+    if (view !== 'studio' || engineInfo) return;
+    engine.boot().then((info) => { setEngineInfo(info); void refreshModels(); }, (e: Error) => setEngineError(e.message));
+  }, [view]);
+
   // nothing runs by itself: the canvas waits for Run, so opening the page downloads no models
   const go = useCallback((v: View) => {
     if (v === 'studio') fitPending.current = true;  // the canvas mounts again and has to be framed
+    if (v === 'studio') setLaunching(true);
     setViewMode(v);
     const hash = v === 'studio' ? '#studio' : '';
     if (window.location.hash !== hash) window.history.pushState(null, '', hash || window.location.pathname + window.location.search);
@@ -494,9 +506,10 @@ export function App() {
   const browserNode = nodes.find((n) => n.data.state.status === 'running' && SPECS[n.data.type]?.group !== 'server');
 
   // a pipeline needs every model its steps use; until the engine has started, assume they are there
-  const missing = (wf: WorkflowFile) =>
-    !!engineInfo && wf.nodes.some((n) => { const m = SPECS[n.type]?.model; return !!m && !engineInfo.manifest.models[m]; });
+  const has = (m: string) => (engineInfo ? !!engineInfo.manifest.models[m as ModelKey] : !installed || installed.has(m));
+  const missing = (wf: WorkflowFile) => wf.nodes.some((n) => { const m = SPECS[n.type]?.model; return !!m && !has(m); });
 
+  const endLaunch = useCallback(() => setLaunching(false), []);
   const tutorial = tour && <Tour steps={tour} view={view} onView={tourView} onFocus={tourFocus} onClose={() => setTour(undefined)} />;
 
   if (view === 'home') {
@@ -552,6 +565,8 @@ export function App() {
       </div>
     </StudioContext.Provider>
     {tutorial}
+    {/* after the tutorial, so the tutorial keeps its place (and its step) from the home page to the canvas */}
+    {launching && <Launch engine={engineInfo} error={engineError} onDone={endLaunch} />}
     </>
   );
 }

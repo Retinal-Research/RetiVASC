@@ -13,7 +13,7 @@ For each photograph, RetiVASC:
 5. reports 72 measurements of the vessel tree. These are vessel density, calibre, tortuosity and fractal dimension, plus the summary calibres CRAE and CRVE and their ratio (AVR), for the whole image and for the standard rings around the optic disc;
 6. writes a report: a language model turns the measurements into text, in English or Chinese, and answers questions about them.
 
-The page opens on a home page with four pipelines, and a one-minute tutorial that opens by itself on the first visit (the Tutorial button at the top right opens it again). Each step of a pipeline is a *skill* on a canvas: the pipelines are ready-made, and the skills can be connected into new ones.
+The page opens on a home page with four pipelines, a QR code and share buttons (a phone is offered ways to send the link to a computer), and a one-minute tutorial that opens by itself on the first visit (the Tutorial button at the top right opens it again). Each step of a pipeline is a *skill* on a canvas: the pipelines are ready-made, and the skills can be connected into new ones.
 
 | Pipeline | What it does |
 |---|---|

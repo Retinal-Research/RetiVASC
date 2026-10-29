@@ -50,7 +50,7 @@ class ReportSettings:
     dollars_per_day: float = 10.0  # all IPs together
     # charged when the API reports no cost (an error part-way, say), to stay on the safe side
     fallback_cost: float = 0.002
-    max_tokens: int = 8000  # reasoning models count their thinking here too
+    max_tokens: int = 32000  # reasoning models count their thinking here too; a table of every value needs room
     timeout: float = 120
 
     def key(self) -> str:

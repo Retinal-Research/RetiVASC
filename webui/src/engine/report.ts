@@ -124,7 +124,7 @@ export interface ReportValue {
  *  numbers are checked like the text's. */
 export function takeTable(text: string): { text: string; table?: Table; error?: string } {
   const m = /```json\s*([\s\S]*?)```\s*$/.exec(text.trim());
-  if (!m) return { text, error: 'the model wrote no table' };
+  if (!m) return { text: text.replace(/```json[\s\S]*$/, '').trim(), error: /```json/.test(text) ? 'the table was cut off before its end: the answer reached the length limit' : 'the model wrote no table' };
   const rest = text.trim().slice(0, m.index).trim();
   try {
     const j = JSON.parse(m[1]) as { title?: unknown; columns?: unknown; rows?: unknown };
