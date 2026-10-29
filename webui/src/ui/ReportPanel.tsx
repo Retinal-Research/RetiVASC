@@ -1,5 +1,5 @@
 // The AI report in the inspector: the text, follow-up questions, the numbers it was given, and the
-// model that wrote it. Everything here runs on this computer.
+// model that wrote it.
 
 import { useState } from 'react';
 import { factsText } from '../engine/prompt';
@@ -61,7 +61,7 @@ export function ReportView({ value, workflow }: { value: ReportValue; workflow: 
     factsText(value.facts),
     '',
     '---',
-    `Written by ${value.model} on this computer (RetiVASC), ${new Date().toISOString().slice(0, 10)}. A language model can be wrong: check the text against the numbers. Research use only; not a diagnosis.`,
+    `Written by ${value.model}${value.writer === 'online' ? ' through the lab’s API' : ' on this computer'} (RetiVASC), ${new Date().toISOString().slice(0, 10)}. A language model can be wrong: check the text against the numbers. Research use only; not a diagnosis.`,
   ].join('\n');
 
   return (
@@ -90,7 +90,7 @@ export function ReportView({ value, workflow }: { value: ReportValue; workflow: 
           </div>
         )}
         <div className="ask">
-          <textarea className="select" rows={2} value={question} placeholder={value.language === 'zh' ? '例如：动脉和静脉相比怎么样？' : 'e.g. How do the arteries compare with the veins?'}
+          <textarea className="select" rows={2} value={question} placeholder="e.g. How do the arteries compare with the veins?"
                     onChange={(e) => setQuestion(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void ask(); } }} />
           {answering === undefined

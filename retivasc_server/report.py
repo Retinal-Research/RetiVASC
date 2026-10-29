@@ -50,7 +50,7 @@ class ReportSettings:
     dollars_per_day: float = 10.0  # all IPs together
     # charged when the API reports no cost (an error part-way, say), to stay on the safe side
     fallback_cost: float = 0.002
-    max_tokens: int = 4000  # reasoning models count their thinking here too
+    max_tokens: int = 8000  # reasoning models count their thinking here too
     timeout: float = 120
 
     def key(self) -> str:
@@ -134,8 +134,8 @@ def sheet_of(raw) -> dict:
     if not isinstance(raw, dict) or raw.get("scope") not in SCOPES or raw.get("language") not in LANGUAGES:
         raise HTTPException(400, "facts: not a RetiVASC fact sheet")
     groups = raw.get("groups")
-    if not isinstance(groups, list) or not 1 <= len(groups) <= 16:
-        raise HTTPException(400, "facts: 1 to 16 groups")
+    if not isinstance(groups, list) or len(groups) > 16:
+        raise HTTPException(400, "facts: at most 16 groups")
     out = []
     for g in groups:
         rows = g.get("rows") if isinstance(g, dict) else None
@@ -166,32 +166,29 @@ def facts_text(sheet: dict) -> str:
     return "\n\n".join(blocks)
 
 
-def report_prompt(sheet: dict, focus: str) -> str:
-    l, zh = sheet["language"], sheet["language"] == "zh"
-    colon = "：" if zh else ":"
-    compares = any(g["title"] in ("Comparison between steps", "步骤之间的比较") for g in sheet["groups"])
-    sections = [x for i, x in enumerate(PROMPTS["sections"][sheet["scope"]][l]) if sheet["scope"] == "photo" or i != 3 or compares]
-    listed = "、".join(f"“## {x}”" for x in sections) if zh else ", ".join(f'"## {x}"' for x in sections)
-    lines = [
-        f"{PROMPTS['results'][sheet['scope']][l]}{colon}",
-        facts_text(sheet),
-        "",
-        f"{PROMPTS['definitions'][l]}{colon}",
-        "\n".join(f"- {PROMPTS['terms'][t][l]}" for t in sheet["terms"]),
-        "",
-        PROMPTS["write"][l].replace("{sections}", listed),
-        PROMPTS["guide"][sheet["scope"]][l],
-        PROMPTS["focus"][l].replace("{focus}", focus) if focus else "",
-    ]
-    return "\n".join(lines).strip()
+def report_prompt(sheet: dict, request: str) -> str:
+    """The results, their definitions, and the person's request (the default one when it is empty)."""
+    l = sheet["language"]
+    parts = [f"{PROMPTS['results'][sheet['scope']][l]}:", facts_text(sheet) if sheet["groups"] else PROMPTS["none"]]
+    if sheet["terms"]:
+        parts += ["", f"{PROMPTS['definitions'][l]}:", "\n".join(f"- {PROMPTS['terms'][t][l]}" for t in sheet["terms"])]
+    parts += ["", f"{PROMPTS['heading']}:", request.strip() or PROMPTS["request"][sheet["scope"]]]
+    return "\n".join(parts).strip()
+
+
+EFFORTS = ("low", "medium", "high")
 
 
 def messages_of(body: dict) -> tuple[str, list[dict], str]:
-    """System text, the conversation, and the language: the report, or a follow-up question about it."""
+    """System text (always this server's), the conversation, and the reasoning effort: the report, or a
+    follow-up question about it. The person may write the request, never the system prompt."""
     sheet = sheet_of(body.get("facts"))
-    focus = _text(body.get("focus") or "", 200, "focus").strip()
+    request = _text(body.get("prompt") or "", 1500, "prompt")
+    effort = body.get("effort") or "medium"
+    if effort not in EFFORTS:
+        raise HTTPException(400, "effort: low, medium or high")
     l = sheet["language"]
-    messages = [{"role": "user", "content": report_prompt(sheet, focus)}]
+    messages = [{"role": "user", "content": report_prompt(sheet, request)}]
     question = body.get("question")
     if question is not None:
         messages.append({"role": "assistant", "content": _text(body.get("report"), 8000, "report")})
@@ -203,12 +200,12 @@ def messages_of(body: dict) -> tuple[str, list[dict], str]:
             messages += [{"role": "user", "content": PROMPTS["question"][l].replace("{question}", q)},
                          {"role": "assistant", "content": _text(h.get("a"), 4000, "answer")}]
         messages.append({"role": "user", "content": PROMPTS["question"][l].replace("{question}", _text(question, 300, "question"))})
-    return PROMPTS["system"][l], messages, l
+    return PROMPTS["system"][l], messages, effort
 
 
 # ---------------------------------------------------------------- providers
 
-def fake(s: ReportSettings, system: str, messages: list[dict], charge) -> Iterator[str]:
+def fake(s: ReportSettings, system: str, messages: list[dict], charge, effort: str = "medium") -> Iterator[str]:
     """A canned report built from the prompt's first lines: for tests, never for users."""
     first = messages[-1]["content"].splitlines()
     text = "## Summary\n- (test report) " + " ".join(first[1:4]) + "\n\n## Notes\n- Written by the test provider."
@@ -217,12 +214,13 @@ def fake(s: ReportSettings, system: str, messages: list[dict], charge) -> Iterat
     charge(0.001)
 
 
-def gateway(s: ReportSettings, system: str, messages: list[dict], charge) -> Iterator[str]:
+def gateway(s: ReportSettings, system: str, messages: list[dict], charge, effort: str = "medium") -> Iterator[str]:
     """The lab's LLM gateway on this machine (OpenAI-style chat, streamed), which holds the CreateAI token.
     RetiVASC has only its own app key for it."""
     import httpx
 
-    body = {"messages": [{"role": "system", "content": system}, *messages], "max_tokens": s.max_tokens, "stream": True}
+    body = {"messages": [{"role": "system", "content": system}, *messages], "max_tokens": s.max_tokens, "stream": True,
+            "reasoning": {"effort": effort}}
     if s.model:
         body["model"] = s.model
     headers = {"Authorization": f"Bearer {s.key()}", "Content-Type": "application/json"}
@@ -307,7 +305,7 @@ def install(app: FastAPI, s: ReportSettings) -> None:
                 body = json.loads(raw)
             except ValueError:
                 raise HTTPException(400, "send the fact sheet as JSON")
-            system, messages, _ = messages_of(body)  # checked before it counts against the limits
+            system, messages, effort = messages_of(body)  # checked before it counts against the limits
             ip = client_ip(request)
             refused = limiter.take(ip)
             if refused:
@@ -320,7 +318,7 @@ def install(app: FastAPI, s: ReportSettings) -> None:
 
         def stream() -> Iterator[str]:
             try:
-                yield from write(s, system, messages, lambda c: cost.append(c))
+                yield from write(s, system, messages, lambda c: cost.append(c), effort)
             except Exception as e:  # the browser shows what went wrong; the key never appears in it
                 yield f"\n\n[report service error: {e}]"
             finally:  # also when the visitor stops it: the answer so far was paid for

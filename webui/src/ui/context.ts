@@ -29,6 +29,13 @@ export interface Studio {
   /** swap a node for another type with the same ports (one photo / a folder), keeping its connections */
   setType: (nodeId: string, type: string) => void;
   setView: (nodeId: string, view: ViewSettings) => void;
+  /** run one step, and whatever before it has changed; nothing after it */
+  runStep: (nodeId: string) => void;
+  duplicate: (nodeId: string) => void;
+  /** remove every connection into a step */
+  disconnect: (nodeId: string) => void;
+  remove: (nodeId: string) => void;
+  removeEdge: (edgeId: string) => void;
 }
 
 export const StudioContext = createContext<Studio | null>(null);

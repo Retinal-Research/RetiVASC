@@ -10,7 +10,7 @@ For each photograph, RetiVASC:
 2. grades image quality as good, usable or reject, so unreliable photographs can be set aside;
 3. outlines the vessels, separates arteries from veins, and finds the optic disc and cup;
 4. reports 72 measurements of the vessel tree. These are vessel density, calibre, tortuosity and fractal dimension, plus the summary calibres CRAE and CRVE and their ratio (AVR), for the whole image and for the standard rings around the optic disc;
-5. writes a report: a language model on your own computer turns the measurements into text, in English or Chinese, and answers questions about them.
+5. writes a report: a language model turns the measurements into text, in English or Chinese, and answers questions about them.
 
 The page opens on a home page with four pipelines. Each step of a pipeline is a *skill* on a canvas: the pipelines are ready-made, and the skills can be connected into new ones.
 
@@ -23,12 +23,11 @@ The page opens on a home page with four pipelines. Each step of a pipeline is a 
 
 The input of every pipeline is one photograph or a folder of up to 1000. A folder runs one photograph at a time, can be stopped and resumed, and gives one CSV. Besides the 72 measurements, the CSV has the same simple measures for every pipeline, so AutoMorph and VascX can be compared: the share of the field of view covered by vessels, arteries, veins and the optic disc, and the position of the fovea.
 
-**The AI report** is a skill like the others: connect any steps to it, and it writes up their results.
-- The report is written by the lab's language-model API when the page can reach it: the RetiVASC server forwards only the numbers (never a photograph) and keeps the API key, with limits per visitor. Otherwise, or where there is no internet, the model on your computer writes it.
-- The local language model ([Qwen3-1.7B](https://huggingface.co/Qwen/Qwen3-1.7B), 4-bit, 1.4 GB) runs in the browser on your graphics card. It downloads once, when the first report is written (or with *Preload*), and then works without the internet. Nothing leaves your computer.
+**The AI report** is RetiVASC's own skill: connect any steps to it, and it writes up their results. You can edit its prompt and choose how hard it reasons; the rules it follows (a medical research assistant that uses only the given results, never diagnoses, and declines unrelated requests) are fixed on the server.
+- The lab's language model writes it (GPT-6 Luna through ASU CreateAI). The RetiVASC server forwards only the numbers, never a photograph, keeps the API key, and limits each visitor (one request a second, three at once, $1 a day; $10 a day in all).
 - RetiVASC computes every number; the model only writes. Each number in its text is looked up in the results, and words that judge a value (high, normal…) are flagged, because no reference ranges are given. The numbers it was given are shown next to the report.
 - After a folder, it writes one report on all the photographs: their quality, the spread of each measurement, and, when two steps measure the same thing (AutoMorph and VascX vessels, say), how they differ photo by photo.
-- A small model can still be wrong. The report is for research, not a diagnosis.
+- A language model can still be wrong. The report is for research, not a diagnosis.
 
 RetiVASC can be used in two ways:
 - in the browser, where every model runs on your own computer;

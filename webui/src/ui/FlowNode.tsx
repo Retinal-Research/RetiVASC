@@ -12,6 +12,8 @@ import { AnalysisView } from './AnalysisPanel';
 import { FolderBody, FolderFoot } from './FolderPanel';
 import { FeaturesView } from './FeaturesPanel';
 import { Markdown } from './Markdown';
+import { NodeMenu } from './NodeMenu';
+import { DEFAULT_REQUEST } from '../engine/prompt';
 import { ANALYSIS_STEPS, SheetProgress, SheetSummaryView } from './SheetPanel';
 import { DevicePick, FilePick, StudyPhotosBody } from './StudyNodes';
 import { Thumb } from './Thumb';
@@ -263,23 +265,28 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
       }
       case 'ai.report': {
         const v = out?.kind === 'report' ? out : undefined;
+        const folderScope = v?.facts.scope === 'folder';
         const text = data.state.status === 'running' ? data.state.text : v?.text;
         return (
           <div className="ai">
-            <div className="row">
-              <select className="select" value={String(data.params.engine ?? 'auto')} onChange={(e) => studio.setParams(id, { engine: e.target.value })}
-                      title="Who writes the report. The lab's API gets only the numbers, through the RetiVASC server, never the photographs.">
-                <option value="auto">Lab API, else this computer</option>
-                <option value="online">Lab API only</option>
-                <option value="local">This computer only</option>
+            <label className="sfield">
+              <span className="ai-label">
+                Prompt
+                {data.params.prompt ? <button className="linkbtn" onClick={() => studio.setParams(id, { prompt: '' })}>Default</button> : null}
+              </span>
+              <textarea className="select ai-prompt" rows={4} maxLength={1500} value={String(data.params.prompt || DEFAULT_REQUEST[folderScope ? 'folder' : 'photo'])}
+                        onChange={(e) => studio.setParams(id, { prompt: e.target.value === DEFAULT_REQUEST[folderScope ? 'folder' : 'photo'] ? '' : e.target.value })}
+                        title="What to write. The rules the model follows are fixed on the RetiVASC server." />
+            </label>
+            <label className="sfield">
+              <span>Reasoning</span>
+              <select className="select" value={String(data.params.effort ?? 'medium')} onChange={(e) => studio.setParams(id, { effort: e.target.value })}
+                      title="How hard the model thinks before it writes: higher is slower and costs more">
+                <option value="low">Low · fastest</option>
+                <option value="medium">Medium</option>
+                <option value="high">High · most thorough</option>
               </select>
-              <select className="select" value={String(data.params.language ?? 'en')} onChange={(e) => studio.setParams(id, { language: e.target.value })} title="Language of the report">
-                <option value="en">English</option>
-                <option value="zh">中文</option>
-              </select>
-            </div>
-            <input className="select" value={String(data.params.focus ?? '')} placeholder="Focus (optional), e.g. arteries and veins"
-                   onChange={(e) => studio.setParams(id, { focus: e.target.value })} />
+            </label>
             {text ? (
               <div className="ai-text"><Markdown text={text} /></div>
             ) : (
@@ -358,6 +365,7 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
           <span className="kdot" />
           {GROUP_LABEL[spec.group]}
           {model && <span className="kmodel">{mb(model.bytes)}</span>}
+          <NodeMenu id={id} />
         </div>
         <div className="node-title">{spec.title}</div>
         <div className="node-sub">{spec.subtitle}</div>

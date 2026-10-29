@@ -172,7 +172,8 @@ export class Executor {
     this.setFolder({ stopping: true });
   }
 
-  async run(nodes: GraphNode[], edges: GraphEdge[], onState: (id: string, state: NodeState) => void): Promise<RunSummary> {
+  /** Run the graph; with `only`, just those steps (one step and what it needs), leaving the others as they are. */
+  async run(nodes: GraphNode[], edges: GraphEdge[], onState: (id: string, state: NodeState) => void, only?: Set<string>): Promise<RunSummary> {
     if (this.running) throw new Error('a run is already in progress');
     this.running = true;
     this.stopRequested = false;
@@ -189,7 +190,7 @@ export class Executor {
       if (stale.length) void engine.call({ op: 'release', ids: stale });
 
       this.types = new Map(nodes.map((n) => [n.id, n.type]));
-      const sorted = order(nodes, edges);
+      const sorted = order(nodes, edges).filter((n) => !only || only.has(n.id));
       const folderNode = sorted.find((n) => n.type === 'input.folder');
       const perPhoto = folderNode ? downstreamOf(edges, folderNode.id) : new Set<string>();
       // after a folder: reports on all photos wait for the last one

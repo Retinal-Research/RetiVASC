@@ -174,8 +174,9 @@ export function Inspector({ node }: { node?: StudioNode }) {
             <ReportView key={out.chat} value={out} workflow={studio.workflow} />
           ) : (
             <p className="footnote">
-              Connect any steps to this one and press Run: a language model on this computer writes up their results, and you can then
-              ask about them. After a Photo folder it writes one report on all the photos. Nothing leaves this computer.
+              Connect any steps to this one and press Run: the lab’s language model writes up their results, and you can then ask
+              about them. After a Photo folder it writes one report on all the photos. Only the numbers are sent, through the RetiVASC
+              server; never the photographs.
             </p>
           )}
           {st.status === 'error' && <p className="error">{st.message}</p>}
