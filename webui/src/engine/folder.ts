@@ -60,6 +60,8 @@ export interface PhotoRecord {
   quality: Record<string, QualityResult>;
   /** by node id: each M3 step's values */
   features: Record<string, { features: Record<string, number | null>; centredOn: M3Result['centredOn']; gradable?: boolean }>;
+  /** by node id: simple measures of each segmentation and the fovea (engine/summary.ts) */
+  measures?: Record<string, Record<string, number>>;
 }
 
 const DB_NAME = 'retivasc-folders';

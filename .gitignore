@@ -8,12 +8,13 @@ outputs/
 # model weights: published separately (see README, "Models")
 automorph_v2/runtime/**/*.pth
 automorph_v2/runtime/**/*.pt
-webui/public/models/*.onnx
+webui/public/models/**/*.onnx
 
 # generated
 webui/node_modules/
 webui/dist/
 tools/ref/
+tools/tpot_ref/
 tools/official/
 tools/official_retify/
 tools/.venv/

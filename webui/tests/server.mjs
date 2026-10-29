@@ -15,7 +15,7 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true, args:
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
-await page.goto(URL);
+await page.goto(URL + '#studio');
 
 // 1. sign in
 await page.waitForSelector('.login');
@@ -32,7 +32,8 @@ ok(await page.isVisible('.wf:has-text("Full analysis on the server")'), 'signed 
 
 // 2. one photo, full AutoMorph v2 on the server
 await page.click('.wf:has-text("Full analysis on the server")');
-await page.waitForSelector('.react-flow__node[data-id="full"]');  // a preset workflow runs as soon as it opens
+await page.waitForSelector('.react-flow__node[data-id="full"]');
+await page.click('.btn.primary');  // nothing runs until Run
 await page.waitForSelector('.react-flow__node[data-id="full"] .sprog', { timeout: 30000 });
 const step = await page.textContent('.react-flow__node[data-id="full"] .sprog-head span');
 ok(true, `progress shown while it runs ("${step}")`);

@@ -13,20 +13,24 @@ const problems = [];
 page.on('pageerror', (e) => problems.push(String(e)));
 const ok = (cond, label) => console.log(`${cond ? 'ok  ' : 'FAIL'} ${label}`);
 const theme = () => page.evaluate(() => document.documentElement.dataset.theme);
+// the theme is applied after React renders: wait a moment for it instead of reading at once
+const becomes = (t) => page.waitForFunction((x) => document.documentElement.dataset.theme === x, t, { timeout: 2000 }).then(() => t, theme);
 const accent = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim());
 const idle = () => page.waitForFunction(() => {
   const s = Object.values(window.__studio?.states() ?? {});
   return s.length && s.every((x) => x.status !== 'running') && s.some((x) => x.status === 'done');
 }, null, { timeout: 300_000, polling: 200 });
 
-await page.goto('http://localhost:5178/');
+await page.goto('http://localhost:5178/#studio');
 await page.evaluate(() => localStorage.removeItem('retivasc-studio-appearance'));
 await page.reload();
+await page.waitForFunction(() => window.__studio?.engine());
+await page.evaluate(() => window.__studio.run());  // nothing runs by itself
 await idle();
 ok((await theme()) === 'dark', 'follows a dark system setting by default');
 
 await page.click('.appearance .icon-btn:first-child');
-ok((await theme()) === 'light', 'sun button switches to the day theme');
+ok((await becomes('light')) === 'light', 'sun button switches to the day theme');
 await page.click('.react-flow__node[data-id="view"] .node-head');
 await page.waitForTimeout(300);
 await page.screenshot({ path: join(SHOTS, 'theme_day.png') });
@@ -44,11 +48,13 @@ await page.keyboard.press('Escape');
 await page.reload();
 const early = await page.evaluate(() => [document.documentElement.dataset.theme, document.documentElement.style.getPropertyValue('--accent')]);
 ok(early[0] === 'light' && early[1] === '#e11d48', `remembered after reload (${early.join(', ')})`);
+await page.waitForFunction(() => window.__studio?.engine());
+await page.evaluate(() => window.__studio.run());
 await idle();
 
 await page.click('.appearance .icon-btn:nth-child(2)');
 await page.click('.segmented button:has-text("System")');
-ok((await theme()) === 'dark', 'System mode follows the dark setting');
+ok((await becomes('dark')) === 'dark', 'System mode follows the dark setting');
 await page.emulateMedia({ colorScheme: 'light' });
 await page.waitForTimeout(100);
 ok((await theme()) === 'light', 'System mode switches live when the OS goes light');

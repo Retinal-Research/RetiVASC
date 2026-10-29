@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "source": "Retinal-Research/TPOT-SR @ 0620afa (weights/best_SSIM.pth, weights/fusion_head_best.pth)",
+  "precision": "float32 (19 MB; small enough to keep full precision)",
+  "models": {
+    "tpot": {
+      "label": "TPOT fundus enhancement (lab model, ISBI 2025)",
+      "input": [
+        1,
+        3,
+        256,
+        256
+      ],
+      "members": "one network, one pass at 256 x 256, input and output in [0, 1]",
+      "float32": true,
+      "bytes": 18958882,
+      "parts": [
+        {
+          "file": "tpot.onnx",
+          "bytes": 18958882,
+          "sha256": "03ed63ef2d1adfbe8eba54f87e69c3a74bb70c5daa0ac604f15102b299ef852e",
+          "member": "tpot"
+        }
+      ]
+    },
+    "tpot_fusion": {
+      "label": "TPOT-SR fusion head (full resolution)",
+      "input": [
+        1,
+        6,
+        "h",
+        "w"
+      ],
+      "members": "5 convolutions at 2048 x 2048, run in tiles with 5 pixels of context",
+      "float32": true,
+      "bytes": 466408,
+      "parts": [
+        {
+          "file": "fusion.onnx",
+          "bytes": 466408,
+          "sha256": "067de72e1092db383da7448ba5ff033a2cd6d78d7f1d9787aa59f3f20b1eeec0",
+          "member": "fusion"
+        }
+      ]
+    }
+  }
+}

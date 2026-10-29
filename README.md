@@ -1,5 +1,7 @@
 # RetiVASC
 
+**Retinal Vascular Phenotype Platform for Brain Health** · Geometry Systems Lab, Arizona State University
+
 RetiVASC measures the blood vessels of the retina in colour fundus photographs. Small changes in these vessels are being studied as signs of disease elsewhere in the body, including the brain. Measuring them by hand is slow and inconsistent, so RetiVASC does it automatically, in a web browser or on a lab server.
 
 For each photograph, RetiVASC:
@@ -9,9 +11,20 @@ For each photograph, RetiVASC:
 3. outlines the vessels, separates arteries from veins, and finds the optic disc and cup;
 4. reports 72 measurements of the vessel tree. These are vessel density, calibre, tortuosity and fractal dimension, plus the summary calibres CRAE and CRVE and their ratio (AVR), for the whole image and for the standard rings around the optic disc.
 
-The analysis is [AutoMorph](https://github.com/rmaphoh/AutoMorph), a published and validated pipeline, run with all of its models. RetiVASC adds two ways of using it:
-- a visual workflow editor that runs in the browser;
-- a server that a lab can run for its own users.
+The page opens on a home page with four pipelines. Each step of a pipeline is a *skill* on a canvas: the pipelines are ready-made, and the skills can be connected into new ones.
+
+| Pipeline | What it does |
+|---|---|
+| **RetiVASC** (ours) | The lab's [TPOT](https://arxiv.org/abs/2411.01403) enhancement first, at full resolution through TPOT-SR's fusion head, then AutoMorph's segmentation and 72 measurements on the enhanced photograph. The quality grade is the original photograph's. |
+| **AutoMorph** | [AutoMorph](https://github.com/rmaphoh/AutoMorph), a published and validated pipeline, run with all of its models. |
+| **VascX** | The [VascX models](https://huggingface.co/Eyened/vascx) of the Eyened Reading Center: their own field-of-view crop, then vessels, arteries/veins, the optic disc and the fovea, run as their Python packages run them. |
+| **Custom** | A photograph and the skill library, to build your own. |
+
+The input of every pipeline is one photograph or a folder of up to 1000. A folder runs one photograph at a time, can be stopped and resumed, and gives one CSV. Besides the 72 measurements, the CSV has the same simple measures for every pipeline, so AutoMorph and VascX can be compared: the share of the field of view covered by vessels, arteries, veins and the optic disc, and the position of the fovea.
+
+RetiVASC can be used in two ways:
+- in the browser, where every model runs on your own computer;
+- on a server that a lab runs for its own users.
 
 ## Two ways to use it
 
@@ -40,6 +53,7 @@ The model weights are too large for git. They are attached to the GitHub release
 git clone https://github.com/Retinal-Research/RetiVASC.git
 cd RetiVASC
 python tools/release.py fetch --web        # 0.85 GB, once
+python tools/release.py fetch --vascx      # optional: the VascX models, 0.56 GB, from Hugging Face
 cd webui && npm ci && npm run dev          # then open http://localhost:5178
 ```
 
@@ -95,6 +109,10 @@ A *Quick* box on each browser step runs only the first model of each ensemble, f
 ## Licence and acknowledgements
 
 RetiVASC is released under the GNU General Public License v3.0 (see [LICENSE](LICENSE)). It has to be: the 72 measurements derive from [Retipy](https://github.com/alevalv/retipy), which is GPL-3.0. AutoMorph v2 in `automorph_v2/` keeps its own Apache-2.0 licence and notices (`automorph_v2/LICENSE`, `automorph_v2/THIRD_PARTY_NOTICES.md`). The model weights are redistributed under AutoMorph's original terms.
+
+The VascX models are not part of RetiVASC. `tools/release.py fetch --vascx` and the public site load them from the authors' repository, [Eyened/vascx](https://huggingface.co/Eyened/vascx), at a fixed revision. Their model cards license them under CC BY-NC 4.0, for non-commercial research only. The VascX preprocessing in `webui/src/vascx/prep.ts` follows retinalysis-fundusprep (AGPL-3.0).
+
+TPOT is the lab's model ([Retinal-Research/TPOT-SR](https://github.com/Retinal-Research/TPOT-SR)). `tools/export_tpot.py` turns its two checkpoints into the ONNX files the browser runs. The TPOT-SR repository does not state a licence yet.
 
 Parts of the code and documentation were written with the help of Claude, an AI assistant by Anthropic.
 

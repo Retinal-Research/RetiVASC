@@ -10,11 +10,11 @@ const cases = JSON.parse(readFileSync(join(REF, 'cases.json'), 'utf8'));
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-unsafe-webgpu'] });
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
-await page.goto(URL);
+await page.goto(URL + '#studio');
 await page.waitForFunction(() => window.__studio?.engine(), null, { timeout: 120_000 });
 const engine = await page.evaluate(() => window.__studio.engine());
 console.log(`engine ${engine.backend} · ${engine.adapter}`);
-await page.evaluate(() => window.__studio.load(0));
+await page.evaluate(() => window.__studio.load('automorph'));
 
 const all = { n: 0, same: 0, tiny: 0, pct1: 0, pct5: 0 };
 for (const c of cases) {

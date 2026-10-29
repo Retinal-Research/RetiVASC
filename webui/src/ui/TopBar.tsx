@@ -3,6 +3,8 @@ import type { Appearance, Theme } from './appearance';
 import { AppearanceMenu } from './AppearanceMenu';
 import type { EngineInfo } from '../runtime/protocol';
 import { ms } from './format';
+import { SUBTITLE } from './Home';
+import { Logo } from './Logo';
 import type { AccountState } from './Login';
 
 interface Props {
@@ -21,19 +23,11 @@ interface Props {
   onAppearance: (a: Appearance) => void;
   account: AccountState;
   onSignOut: () => void;
+  /** back to the home page */
+  onHome: () => void;
 }
 
-function Logo() {
-  return (
-    <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
-      <circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.9" />
-      <circle cx="20.5" cy="15" r="3.4" fill="currentColor" />
-      <path d="M20 15 C 14 12, 10 8, 6 9 M20 16 C 13 19, 10 23, 7 24 M19 14 C 15 9, 15 6, 13 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" opacity="0.85" />
-    </svg>
-  );
-}
-
-export function TopBar({ name, engine, engineError, running, lastRun, onRun, onStop, onSave, onOpen, appearance, theme, onAppearance, account, onSignOut }: Props) {
+export function TopBar({ name, engine, engineError, running, lastRun, onRun, onStop, onSave, onOpen, appearance, theme, onAppearance, account, onSignOut, onHome }: Props) {
   let chip = <span className="engine wait"><span className="sdot" />Starting engine…</span>;
   if (engineError) chip = <span className="engine bad" title={engineError}><span className="sdot" />Engine failed to start</span>;
   else if (engine?.backend === 'webgpu') chip = <span className="engine ok" title={engine.adapter}><span className="sdot" />WebGPU · {engine.adapter}</span>;
@@ -41,13 +35,13 @@ export function TopBar({ name, engine, engineError, running, lastRun, onRun, onS
 
   return (
     <header className="topbar">
-      <div className="brand">
-        <Logo />
+      <button className="brand" onClick={onHome} title="Home page">
+        <Logo size={26} />
         <div>
-          <div className="brand-name">RetiVASC Studio</div>
-          <div className="brand-sub">{account.mode === 'ready' ? 'Retinal vascular analysis' : 'AutoMorph v2 in the browser · demo'}</div>
+          <div className="brand-name">RetiVASC</div>
+          <div className="brand-sub">{SUBTITLE}</div>
         </div>
-      </div>
+      </button>
       <div className="wf-current" title={name}>{name}</div>
       <div className="actions">
         <button className="btn primary" onClick={onRun} disabled={running || !engine} title="Run (Ctrl+Enter)">

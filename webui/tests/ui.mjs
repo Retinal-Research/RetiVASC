@@ -20,12 +20,12 @@ const idle = () => page.waitForFunction(() => {
 const states = () => page.evaluate(() => window.__studio.states());
 const ok = (cond, label) => console.log(`${cond ? 'ok  ' : 'FAIL'} ${label}`);
 
-await page.goto('http://localhost:5178/');
+await page.goto('http://localhost:5178/#studio');
 await page.waitForFunction(() => window.__studio?.engine());
-await idle();
 
-// 1. open a local photo through the node's file input
-await page.click('.wf:nth-of-type(3)'); // Vessel segmentation
+// 1. open a local photo through the node's file input (a workflow runs only when Run is pressed)
+await page.click('.wf:has-text("Vessel segmentation")');
+await page.click('.btn.primary');
 await idle();
 const file = join(import.meta.dirname, '..', 'public', 'samples', 'pd_cmv_retinitis.jpg');
 await page.setInputFiles('.react-flow__node[data-id="photo"] input[type=file]', file);
@@ -56,7 +56,8 @@ const saved = join(SHOTS, 'saved_workflow.json');
 await download.saveAs(saved);
 const wf = JSON.parse(readFileSync(saved, 'utf8'));
 ok(wf.format === 'retivasc-studio/1' && wf.nodes.length === 5 && !wf.nodes.find((n) => n.id === 'photo').params.source, `saved ${wf.nodes.length} steps; the opened photo itself is not written to the file`);
-await page.click('.wf:nth-of-type(1)');
+await page.click('.wf:has-text("Image quality check")');
+await page.click('.btn.primary');
 await idle();
 await page.setInputFiles('label.btn input[type=file]', saved);
 await page.waitForTimeout(500);

@@ -4,7 +4,7 @@ import { DISC } from '../automorph/postprocess';
 import { QUALITY_CLASSES } from '../automorph/types';
 import { GROUP_LABEL, SPECS } from '../engine/specs';
 import { addUpload, sourceName } from '../engine/sources';
-import type { DiscCupValue, M0Value, NodeValue, QualityValue } from '../engine/values';
+import type { DiscCupValue, NodeValue, QualityValue } from '../engine/values';
 import { DEFAULT_VIEW, useStudio, type StudioNodeData } from './context';
 import { int, mb, pct, statusText } from './format';
 import { countLabels, isLayer, LAYER_LABEL, layerCanvas, type LayerKind } from './render';
@@ -20,11 +20,9 @@ export type StudioNode = Node<StudioNodeData, 'studio'>;
 const THUMB_W = 248;
 const THUMB_H = 168;
 
-/** Share of the circular field of view (at a model's resolution) that a pixel count covers. */
-export function fovShare(count: number, size: number, base: M0Value): number {
-  const r = (base.geometry.radius * size) / base.side;
-  return count / (Math.PI * r * r);
-}
+import { fovShare } from '../engine/summary';
+
+export { fovShare };
 
 /** Bounding box of the disc in base-preview pixels, padded, or undefined. */
 export function discCrop(v: DiscCupValue): { x: number; y: number; w: number; h: number } | undefined {
@@ -45,6 +43,19 @@ export function discCrop(v: DiscCupValue): { x: number; y: number; w: number; h:
   const cx = (x0 + x1) / 2;
   const cy = (y0 + y1) / 2;
   return { x: (cx - side / 2) * s, y: (cy - side / 2) * s, w: side * s, h: side * s };
+}
+
+/** The input of a pipeline: one photo, or a folder whose photos each go through the steps after it. */
+function InputMode({ id, type }: { id: string; type: string }) {
+  const studio = useStudio();
+  return (
+    <div className="seg" role="radiogroup" aria-label="Input">
+      {([['input.fundus', 'One photo'], ['input.folder', 'A folder (up to 1000)']] as const).map(([t, label]) => (
+        <button key={t} role="radio" aria-checked={type === t} className={type === t ? 'on' : ''} disabled={studio.running}
+                onClick={() => studio.setType(id, t)}>{label}</button>
+      ))}
+    </div>
+  );
 }
 
 function QualityBars({ value }: { value: QualityValue }) {
@@ -96,6 +107,7 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
         const v = out?.kind === 'fundus' ? out : undefined;
         return (
           <div className="fundus" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+            <InputMode id={id} type={data.type} />
             <div className="row">
               <select className="select" value={source} onChange={(e) => studio.setParams(id, { source: e.target.value })}>
                 {studio.samples.map((s) => (
@@ -115,18 +127,43 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
           </div>
         );
       }
-      case 'automorph.m0': {
+      case 'automorph.m0':
+      case 'vascx.prep': {
         const v = out?.kind === 'm0' ? out : undefined;
         return (
           <>
             <Thumb base={v?.preview} width={THUMB_W} height={THUMB_H} />
-            {v && <div className="meta">field radius {int(v.geometry.radius)} px · square {int(v.side)} px</div>}
+            {v && <div className="meta">field radius {int(Math.round(v.geometry.radius))} px · square {int(v.side)} px</div>}
+          </>
+        );
+      }
+      case 'retivasc.enhance': {
+        const v = out?.kind === 'm0' ? out : undefined;
+        const half = (THUMB_W - 6) / 2;
+        const original = v?.before ?? (inputs?.image?.kind === 'm0' ? inputs.image.preview : undefined);
+        return (
+          <>
+            <div className="pair">
+              <figure><Thumb base={original} width={half} height={half} /><figcaption>Before</figcaption></figure>
+              <figure><Thumb base={v?.preview} width={half} height={half} /><figcaption>After</figcaption></figure>
+            </div>
+            {v?.timing && <div className="meta">{data.params.quick ? 'TPOT at 256, resized back' : 'TPOT at 256 · fusion at 2048'} · square {int(v.side)} px</div>}
+          </>
+        );
+      }
+      case 'vascx.fovea': {
+        const v = out?.kind === 'fovea' ? out : undefined;
+        return (
+          <>
+            <Thumb base={v?.base.preview} layers={v ? [layerCanvas(v)] : []} width={THUMB_W} height={THUMB_H} />
+            {v && <div className="meta">fovea at {int(v.x)}, {int(v.y)} px (of {int(v.size)})</div>}
           </>
         );
       }
       case 'automorph.m1':
         return out?.kind === 'quality' ? <QualityBars value={out} /> : <div className="empty">Run to grade the photo</div>;
-      case 'automorph.vessel': {
+      case 'automorph.vessel':
+      case 'vascx.vessel': {
         const v = out?.kind === 'vessel' ? out : undefined;
         const count = v ? v.mask.reduce((a, b) => a + b, 0) : 0;
         return (
@@ -136,7 +173,8 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
           </>
         );
       }
-      case 'automorph.av': {
+      case 'automorph.av':
+      case 'vascx.av': {
         const v = out?.kind === 'av' ? out : undefined;
         const c = v ? countLabels(v.map.labels, 4) : [];
         return (
@@ -151,7 +189,8 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
           </>
         );
       }
-      case 'automorph.disc': {
+      case 'automorph.disc':
+      case 'vascx.disc': {
         const v = out?.kind === 'disc' ? out : undefined;
         const c = v ? countLabels(v.map.labels, 3) : [];
         const crop = v ? discCrop(v) : undefined;
@@ -160,7 +199,7 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
             <Thumb base={v?.base.preview} layers={v ? [layerCanvas(v)] : []} crop={crop} width={THUMB_W} height={150} />
             {v && (
               <div className="meta">
-                {crop ? `disc ${int(c[1] + c[2])} px · cup ${int(c[2])} px (at 512²)` : 'no optic disc found'}
+                {!crop ? 'no optic disc found' : data.type === 'vascx.disc' ? `disc ${int(c[1])} px (at ${v.map.width}²)` : `disc ${int(c[1] + c[2])} px · cup ${int(c[2])} px (at ${v.map.width}²)`}
               </div>
             )}
           </>
@@ -169,7 +208,7 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
       case 'view.overlay': {
         const base = inputs?.image?.kind === 'm0' ? inputs.image : undefined;
         const view = data.view ?? DEFAULT_VIEW;
-        const present = (['vessel', 'av', 'disc'] as LayerKind[]).filter((k) => isLayer(inputs?.[k]));
+        const present = (['vessel', 'av', 'disc', 'fovea'] as LayerKind[]).filter((k) => isLayer(inputs?.[k]));
         const layers = present.filter((k) => view.layers[k]).map((k) => layerCanvas(inputs![k] as Parameters<typeof layerCanvas>[0]));
         const quality = inputs?.quality?.kind === 'quality' ? inputs.quality.result : undefined;
         return (
@@ -222,7 +261,12 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
         );
       }
       case 'input.folder':
-        return <FolderBody nodeId={id} params={data.params} />;
+        return (
+          <>
+            <InputMode id={id} type={data.type} />
+            <FolderBody nodeId={id} params={data.params} />
+          </>
+        );
       case 'server.analyze': {
         const v = out?.kind === 'analysis' ? out : undefined;
         return (

@@ -31,15 +31,20 @@ On Windows, clone to a short path such as `C:\RetiVASC`: AutoMorph's model folde
 
 ```bash
 python tools/release.py fetch --web     # downloads the browser models into webui/public/models, checks SHA-256
+python tools/release.py fetch --vascx   # optional: the VascX models (0.56 GB) from Eyened/vascx on Hugging Face
 cd webui
 npm ci
 npm run dev                             # http://localhost:5178 (port is fixed: strictPort)
 ```
 
 Verify the deployment:
-- Open http://localhost:5178. The first workflow, *AutoMorph · full pipeline*, starts by itself on a sample photograph.
+- Open http://localhost:5178. The home page lists the pipelines; *Start* opens the canvas with the chosen one. Nothing runs until *Run* (the PI asked for this), so opening the page downloads no models.
+- Choose *AutoMorph* and press *Run* on the sample photograph.
 - The top bar names the engine. `WebGPU · <adapter>` is right; `CPU only` means WebGPU is unavailable, and the run is slow but correct.
 - Every node turns green. *M3 · Features* lists 72 values.
+- The *RetiVASC* pipeline needs the TPOT enhancement models, and *VascX* the VascX models; a pipeline whose models are missing is greyed out on the home page.
+  - VascX: `python tools/release.py fetch --vascx`.
+  - TPOT: download `best_SSIM.pth` and `fusion_head_best.pth` from Retinal-Research/TPOT-SR (`weights/`), then run `python tools/export_tpot.py <their folder>` with a Python that has torch, onnx and Pillow. It writes `webui/public/models/tpot/` and reference tensors; `cd webui && npx tsx tests/tpot.ts` then checks the ONNX files against PyTorch.
 
 To serve a static build instead: `npm run build` writes `webui/dist`; `npm run preview` serves it on port 5179. Any static web server works, but it must:
 - send `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`, which multi-threaded CPU fallback needs;
@@ -52,7 +57,8 @@ The browser version needs no server at all: the page is static files, and every 
 - Pages cannot send the isolation headers. `webui/public/coi-serviceworker.js` adds them in the browser (the page reloads once on the first visit); where the server already sends them it does nothing.
 - `.github/workflows/pages.yml` builds and deploys on every push to `main`, once the repository variable `RETIVASC_MODELS_URL` is set and Pages uses "GitHub Actions" as its source. Changes are tested on `beta` first.
 - Offline sites (a hospital intranet, a mobile screening unit) build without `VITE_MODELS_URL`, so the models ship with the page and nothing is downloaded at run time; the server (B) does the same.
-- Without a RetiVASC server the server steps are hidden, and the workflow starts by itself, as in A.
+- VascX loads from its authors' repository (`VITE_VASCX_URL`, by default Eyened/vascx at a fixed revision), TPOT from `VITE_TPOT_URL` (repository variable `RETIVASC_TPOT_URL`). Without a TPOT host the build leaves TPOT out, and the home page greys out the RetiVASC pipeline.
+- Without a RetiVASC server the server steps are hidden; as in A, nothing runs until Run.
 
 ## B. Server (about 3 minutes plus downloads)
 
@@ -181,7 +187,9 @@ Machine-specific settings live in `retivasc.local.json` at the repository root. 
 ## Architecture, for changes
 
 - **`webui/`** (React, TypeScript, Vite, onnxruntime-web).
-  - Node types are in `src/engine/specs.ts` and ready-made workflows in `src/engine/workflows.ts`.
+  - Node types ("skills") are in `src/engine/specs.ts` and the pipeline library in `src/engine/workflows.ts`: RetiVASC (ours: TPOT enhancement, then AutoMorph), AutoMorph, VascX and Custom on the home page (`src/ui/Home.tsx`), then single steps and the server workflows.
+  - Three model sets, each with its own manifest and folder (their licences differ): AutoMorph in `public/models/`, VascX in `public/models/vascx/` (CC BY-NC 4.0, fetched from Eyened/vascx, never committed), TPOT in `public/models/tpot/` (made by `tools/export_tpot.py`). `VITE_MODELS_URL`, `VITE_VASCX_URL` and `VITE_TPOT_URL` point the page at hosted copies instead.
+  - VascX's preprocessing (field of view, 1024 crop) is `src/vascx/prep.ts`, following retinalysis-fundusprep 1.3.0. Its inference (windows, Gaussian blending, flips) and TPOT's (256 pass, fusion head at 2048 in tiles) are in `src/runtime/engine.worker.ts`.
   - All inference and pixel work happens in `src/runtime/engine.worker.ts`.
   - The *Photo folder* input node (`src/engine/folder.ts`) takes up to 1000 photos. The executor then runs every step downstream of it once per photo, the whole downstream graph for one photo before the next, so memory holds one photo at a time. Each finished photo's grades and features are stored in IndexedDB; choosing the same folder again and pressing Run resumes. The engine keeps up to 2 GB of model weights loaded, which is every ensemble member, so models load once per folder.
   - Ports of AutoMorph's pre- and post-processing are in `src/automorph/`; the 72 measurements are in `src/automorph/m3/`.

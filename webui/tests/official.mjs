@@ -33,11 +33,11 @@ function agree(got, want, classes) {
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-unsafe-webgpu'] });
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
-await page.goto(URL);
+await page.goto(URL + '#studio');
 await page.waitForFunction(() => window.__studio?.engine(), null, { timeout: 120_000 });
 const engine = await page.evaluate(() => window.__studio.engine());
 console.log(`engine ${engine.backend} · ${engine.adapter} · ${quick ? 'quick (1 model each)' : 'complete ensembles'}`);
-await page.evaluate(() => window.__studio.load(0));
+await page.evaluate(() => window.__studio.load('automorph'));
 if (quick) for (const id of ['m1', 'vessel', 'av']) await page.evaluate((n) => window.__studio.setParams(n, { quick: true }), id);
 
 let failed = 0;
