@@ -7,8 +7,10 @@ import { chromium } from 'playwright-core';
 
 const SHOTS = join(import.meta.dirname, '..', '..', 'tools', 'shots');
 mkdirSync(SHOTS, { recursive: true });
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-unsafe-webgpu'] });
+const browser = await chromium.launch({ channel: process.env.BROWSER_CHANNEL ?? 'chrome', headless: true, args: ['--enable-unsafe-webgpu'] });
 const page = await browser.newPage({ viewport: { width: 1680, height: 1000 }, acceptDownloads: true });
+// the sidebar folds everything but the pipelines; open the sections these checks click into
+await page.addInitScript(() => { for (const k of ['singles', 'server', 'skills']) localStorage.setItem(`retivasc-studio-fold-${k}`, 'true'); });
 const problems = [];
 page.on('pageerror', (e) => problems.push(String(e)));
 page.on('dialog', async (d) => { problems.push(`dialog: ${d.message()}`); await d.dismiss(); });

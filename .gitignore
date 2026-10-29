@@ -9,6 +9,7 @@ outputs/
 automorph_v2/runtime/**/*.pth
 automorph_v2/runtime/**/*.pt
 webui/public/models/**/*.onnx
+webui/public/models/llm/tokenizer.json
 
 # generated
 webui/node_modules/

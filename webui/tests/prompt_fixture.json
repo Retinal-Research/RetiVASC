@@ -1,0 +1,99 @@
+[
+ {
+  "sheet": {
+   "scope": "photo",
+   "language": "en",
+   "terms": [
+    "quality",
+    "cdr",
+    "avr",
+    "zones",
+    "microns"
+   ],
+   "groups": [
+    {
+     "title": "AutoMorph M1 · Image quality",
+     "rows": [
+      [
+       "Grade",
+       "Good"
+      ],
+      [
+       "Probability of Good",
+       "0.975"
+      ],
+      [
+       "Gradable by AutoMorph’s rule",
+       "yes"
+      ]
+     ]
+    },
+    {
+     "title": "AutoMorph M3 · Vascular features",
+     "note": "photograph centred on the macula",
+     "rows": [
+      [
+       "Cup-to-disc ratio, vertical",
+       "0.405"
+      ],
+      [
+       "CRAE, Zone B",
+       "336.5 µm"
+      ],
+      [
+       "AVR, Zone B",
+       "0.604"
+      ]
+     ]
+    }
+   ]
+  },
+  "focus": "arteries and veins",
+  "prompt": "Results for one photograph:\nAutoMorph M1 · Image quality:\n- Grade: Good\n- Probability of Good: 0.975\n- Gradable by AutoMorph’s rule: yes\n\nAutoMorph M3 · Vascular features (photograph centred on the macula):\n- Cup-to-disc ratio, vertical: 0.405\n- CRAE, Zone B: 336.5 µm\n- AVR, Zone B: 0.604\n\nDefinitions:\n- Image quality: AutoMorph's quality model grades a photo Good, Usable or Reject. AutoMorph measures vessels only on gradable photos: Good, or Usable with a probability of Reject below 0.25.\n- Cup-to-disc ratio (CDR): the size of the optic cup relative to the optic disc.\n- AVR: arteriole-to-venule ratio, CRAE divided by CRVE. Arterioles are narrower than venules, so it is usually below 1.\n- Zone B is the ring from 2 to 3 disc radii around the centre of the optic disc; Zone C is from 2 to 5 disc radii.\n- Micrometre values use AutoMorph's standard scale for a field of view; compare them only between photos from the same kind of camera.\n\nWrite a report in English, in Markdown, with these sections: \"## Summary\", \"## Image quality\", \"## Vessels\", \"## Notes\".\nUse short bullet points. The summary is two or three bullets: the image quality, then the vessel values you find most informative, with their numbers. In the vessels section, group the values by calibre, complexity and density, and tortuosity.\nPay particular attention to: arteries and veins"
+ },
+ {
+  "sheet": {
+   "scope": "folder",
+   "language": "zh",
+   "terms": [
+    "statistics",
+    "share"
+   ],
+   "groups": [
+    {
+     "title": "文件夹",
+     "rows": [
+      [
+       "文件夹中的照片",
+       "3"
+      ],
+      [
+       "已分析",
+       "3"
+      ]
+     ]
+    },
+    {
+     "title": "AutoMorph M2 · 血管",
+     "rows": [
+      [
+       "血管占视野比例",
+       "n 3，均值 8.1%，标准差 0.5%，中位数 8%，范围 7.6% 至 8.6%"
+      ]
+     ]
+    },
+    {
+     "title": "步骤之间的比较",
+     "rows": [
+      [
+       "血管占视野比例：VascX · 血管 减 AutoMorph M2 · 血管",
+       "n 3，平均差 1.2%，标准差 0.3%，范围 0.9% 至 1.5%，相关系数 r 0.97"
+      ]
+     ]
+    }
+   ]
+  },
+  "focus": "",
+  "prompt": "一个文件夹中照片的结果：\n文件夹：\n- 文件夹中的照片：3\n- 已分析：3\n\nAutoMorph M2 · 血管：\n- 血管占视野比例：n 3，均值 8.1%，标准差 0.5%，中位数 8%，范围 7.6% 至 8.6%\n\n步骤之间的比较：\n- 血管占视野比例：VascX · 血管 减 AutoMorph M2 · 血管：n 3，平均差 1.2%，标准差 0.3%，范围 0.9% 至 1.5%，相关系数 r 0.97\n\n定义：\n- 文件夹统计：n 是有该数值的照片数；标准差即 SD；两个步骤测量同一项时，差值是逐张照片的后者减前者。\n- 占视野比例：分割出的血管、动脉、静脉或视盘覆盖圆形照片面积的比例。\n\n请写一份 Markdown 格式的报告，包含这些小节：“## 概要”、“## 图像质量”、“## 整个文件夹的测量”、“## 步骤之间的比较”、“## 说明”。\n使用简短的要点。概要写分析了多少张照片及其质量；然后按类别写测量结果；如果有步骤之间的比较，再写比较。"
+ }
+]

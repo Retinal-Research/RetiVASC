@@ -8,5 +8,20 @@
     "retention_days": 30,
     "device": "auto",
     "allowed_folders": []
+  },
+  "report": {
+    "enabled": false,
+    "provider": "gateway",
+    "url": "http://127.0.0.1:8095/v1",
+    "model": "openai/gpt6_luna",
+    "key_env": "RETIVASC_REPORT_KEY",
+    "key_file": "~/.config/lab-llm/apps/retivasc.key",
+    "origins": ["https://retinal-research.github.io"],
+    "window_seconds": 1,
+    "per_window": 1,
+    "max_running": 3,
+    "ip_dollars_per_day": 1.0,
+    "dollars_per_day": 10.0,
+    "max_tokens": 4000
   }
 }

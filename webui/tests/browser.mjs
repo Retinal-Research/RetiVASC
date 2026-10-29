@@ -13,11 +13,13 @@ const headed = process.argv.includes('--headed');
 const shots = process.argv.includes('--shots');
 
 const browser = await chromium.launch({
-  channel: 'chrome',
+  channel: process.env.BROWSER_CHANNEL ?? 'chrome',
   headless: !headed,
   args: ['--enable-unsafe-webgpu', '--enable-gpu', '--ignore-gpu-blocklist'],
 });
 const page = await browser.newPage({ viewport: { width: 1680, height: 1000 }, deviceScaleFactor: 1 });
+// the sidebar folds everything but the pipelines; open the sections these checks click into
+await page.addInitScript(() => { for (const k of ['singles', 'server', 'skills']) localStorage.setItem(`retivasc-studio-fold-${k}`, 'true'); });
 const problems = [];
 page.on('console', (m) => { if (m.type() === 'error') problems.push(m.text()); });
 page.on('pageerror', (e) => problems.push(String(e)));

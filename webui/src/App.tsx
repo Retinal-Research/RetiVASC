@@ -13,26 +13,32 @@ import {
   type Edge,
   type IsValidConnection,
 } from '@xyflow/react';
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
 import { Executor, type NodeState, type RunSummary } from './engine/executor';
 import { loadSamples, type Sample } from './engine/sources';
-import { acceptsType, SPECS, type PortSpec } from './engine/specs';
+import { acceptsType, modelsUsed, SPECS, type PortSpec } from './engine/specs';
 import type { PortType } from './engine/values';
 import { WORKFLOWS, type WorkflowFile } from './engine/workflows';
 import { engine } from './runtime/engine';
-import type { EngineInfo } from './runtime/protocol';
+import type { EngineInfo, GpuChoice, ModelKey, ModelNeed, ModelStatus, Progress } from './runtime/protocol';
 import { StudioContext, type Studio, type StudioNodeData, type ViewSettings } from './ui/context';
 import { FlowNode, type StudioNode } from './ui/FlowNode';
 import { Home } from './ui/Home';
 import { Inspector } from './ui/Inspector';
 import { DRAG_TYPE, Sidebar } from './ui/Sidebar';
-import { TopBar } from './ui/TopBar';
+import { TopBar, type PreloadState } from './ui/TopBar';
+import { mb } from './ui/format';
 import { useAppearance } from './ui/appearance';
 import { Login, useAccount } from './ui/Login';
 import { PerfBar } from './ui/PerfBar';
 import { useFolderRun } from './ui/FolderPanel';
 import { api } from './server/api';
 import { exposeTestHooks } from './testHooks';
+import { llm } from './llm/llm';
+import { onlineStatus, stopWriting } from './engine/report';
+import type { LlmManifest, LlmStatus } from './llm/protocol';
+import { Grip } from './ui/Grip';
+import { isNum, useRemembered } from './remember';
 
 const nodeTypes = { studio: FlowNode };
 
@@ -40,6 +46,10 @@ const nodeTypes = { studio: FlowNode };
 const portColor = (type: PortType | undefined) => (type ? `var(--port-${type})` : 'var(--faint)');
 
 const IDLE: NodeState = { status: 'idle', version: 0 };
+
+/** The inspector's width; it can be dragged between these, leaving the canvas some room. */
+const INSPECTOR_W = 392;
+const inspectorMax = () => window.innerWidth - 248 - 360;
 
 /** The pipeline the canvas opens with: ours when it is there. */
 const FIRST = WORKFLOWS.find((w) => w.id === 'retivasc') ?? WORKFLOWS[0];
@@ -56,8 +66,10 @@ function port(nodes: StudioNode[], nodeId: string, handle: string | null | undef
   return ports?.find((p) => p.id === handle);
 }
 
-const portType = (nodes: StudioNode[], nodeId: string, handle: string | null | undefined, side: 'source' | 'target'): PortType | undefined =>
-  port(nodes, nodeId, handle, side)?.type;
+const portType = (nodes: StudioNode[], nodeId: string, handle: string | null | undefined, side: 'source' | 'target'): PortType | undefined => {
+  const type = port(nodes, nodeId, handle, side)?.type;
+  return type === 'any' ? undefined : type;  // only inputs take any kind
+};
 
 function styledEdge(nodes: StudioNode[], e: { source: string; sourceHandle: string; target: string; targetHandle: string }): Edge {
   const type = portType(nodes, e.source, e.sourceHandle, 'source');
@@ -97,11 +109,21 @@ export function App() {
   const [selected, setSelected] = useState<string | undefined>();
   const [engineInfo, setEngineInfo] = useState<EngineInfo>();
   const [engineError, setEngineError] = useState<string>();
+  const [gpu, setGpu] = useState<GpuChoice>(engine.gpu);
+  const [modelStatus, setModelStatus] = useState<ModelStatus>();
+  const [preloading, setPreloading] = useState<Progress>();
+  // the language model of the AI report step: null when this site has none
+  const [llmManifest, setLlmManifest] = useState<LlmManifest | null>();
+  const [llmStatus, setLlmStatus] = useState<LlmStatus>();
+  // the lab's API, through the RetiVASC server, writes reports when this page can reach it
+  const [online, setOnline] = useState(false);
   const [samples, setSamples] = useState<Sample[]>([]);
   const [running, setRunning] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const [lastRun, setLastRun] = useState<RunSummary>();
   const [name, setName] = useState(FIRST.name);
   const [view, setViewMode] = useState<View>(viewOf);
+  const [inspectorW, setInspectorW] = useRemembered('inspector-width', INSPECTOR_W, isNum);
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
   nodesRef.current = nodes;
@@ -132,6 +154,11 @@ export function App() {
     [setNodes],
   );
 
+  const refreshModels = useCallback(
+    () => engine.call<ModelStatus>({ op: 'status' }).then(setModelStatus, () => setModelStatus(undefined)),
+    [],
+  );
+
   const busy = useRef(false);
   const again = useRef(false);  // a run asked for while another runs (e.g. a workflow opened mid-run)
   const run = useCallback(async (): Promise<RunSummary | undefined> => {
@@ -147,6 +174,7 @@ export function App() {
       const graphEdges = edgesRef.current.map((e) => ({ source: e.source, sourceHandle: e.sourceHandle ?? '', target: e.target, targetHandle: e.targetHandle ?? '' }));
       const summary = await executor.run(graphNodes, graphEdges, (id, state) => patchNode(id, { state }));
       setLastRun(summary);
+      void refreshModels();
       return summary;
     } catch (error) {
       setLastRun({ ms: 0, errors: 1, ran: 0, blocked: 0, photos: 0 });
@@ -154,12 +182,13 @@ export function App() {
     } finally {
       busy.current = false;
       setRunning(false);
+      setStopping(false);
       if (again.current) {
         again.current = false;
         setTimeout(() => void runRef.current?.(), 0);
       }
     }
-  }, [executor, patchNode]);
+  }, [executor, patchNode, refreshModels]);
   const runRef = useRef(run);
   runRef.current = run;
 
@@ -180,8 +209,10 @@ export function App() {
   );
 
   useEffect(() => {
-    engine.ready.then(setEngineInfo, (e: Error) => setEngineError(e.message));
+    engine.ready.then((info) => { setEngineInfo(info); void refreshModels(); }, (e: Error) => setEngineError(e.message));
     loadSamples().then(setSamples, () => setSamples([]));
+    void llm.manifest.then((m) => setLlmManifest(m ?? null));
+    void onlineStatus().then((st) => setOnline(st.enabled));
     load(FIRST);
   }, []);
 
@@ -238,8 +269,9 @@ export function App() {
 
   const onConnect = useCallback(
     (c: Connection) => {
+      const multi = !!port(nodesRef.current, c.target, c.targetHandle, 'target')?.multi;
       setEdges((es) => {
-        const kept = es.filter((e) => !(e.target === c.target && e.targetHandle === c.targetHandle));
+        const kept = multi ? es : es.filter((e) => !(e.target === c.target && e.targetHandle === c.targetHandle));
         const edge = styledEdge(nodesRef.current, { source: c.source, sourceHandle: c.sourceHandle ?? '', target: c.target, targetHandle: c.targetHandle ?? '' });
         return addEdge(edge, kept);
       });
@@ -328,6 +360,79 @@ export function App() {
 
   useEffect(() => exposeTestHooks({ executor, run, load, setParams, nodes: () => nodesRef.current, engine: () => engineInfo }), [executor, run, load, setParams, engineInfo]);
 
+  // another device: a new engine, so every result (and the images behind it) is gone
+  const switchGpu = useCallback((next: GpuChoice) => {
+    if (busy.current) return;
+    setGpu(next);
+    setEngineInfo(undefined);
+    setEngineError(undefined);
+    setModelStatus(undefined);
+    setLastRun(undefined);
+    executor.reset();
+    setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, state: { status: 'idle', message: 'Engine restarted · press Run', version: 0 } } })));
+    llm.restart();
+    setLlmStatus(undefined);
+    engine.restart(next).then((info) => { setEngineInfo(info); void refreshModels(); }, (e: Error) => setEngineError(e.message));
+  }, [executor, setNodes, refreshModels]);
+
+  // the models the canvas uses (that this site has), each with the members its settings run
+  const needs: ModelNeed[] = useMemo(() => {
+    const most = new Map<ModelKey, number>();
+    for (const n of nodes) for (const m of modelsUsed(n.data.type, n.data.params)) most.set(m.key, Math.max(most.get(m.key) ?? 0, m.parts));
+    return [...most].filter(([key]) => engineInfo?.manifest.models[key]).map(([key, parts]) => ({ key, parts }));
+  }, [nodes, engineInfo]);
+
+  // the model on this computer, where a report step would use it
+  const local = (params: Record<string, unknown>) => params.engine === 'local' || (params.engine !== 'online' && !online);
+  const usesLlm = !!llmManifest && nodes.some((n) => SPECS[n.data.type]?.llm && local(n.data.params));
+  useEffect(() => {
+    if (usesLlm) llm.status().then(setLlmStatus, () => setLlmStatus(undefined));
+  }, [usesLlm, lastRun]);
+
+  const preload = useCallback(async () => {
+    setPreloading({ stage: 'download', message: 'Starting', fraction: 0 });
+    try {
+      if (needs.length) setModelStatus(await engine.call<ModelStatus>({ op: 'preload', models: needs }, setPreloading));
+      if (usesLlm) setLlmStatus(await llm.load((p) => setPreloading({ ...p, message: `Language model · ${p.message}` })));
+    } catch (error) {
+      window.alert(`Could not load the models: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setPreloading(undefined);
+    }
+  }, [needs, usesLlm]);
+
+  const preloadState = useMemo((): PreloadState => {
+    const models = engineInfo?.manifest.models;
+    if (!models || (!needs.length && !usesLlm)) return { state: 'none', label: '', title: '' };
+    if (preloading) {
+      const pct = preloading.fraction === undefined ? '' : ` ${Math.round(preloading.fraction * 100)}%`;
+      return { state: 'loading', label: `Loading${pct}`, title: preloading.message };
+    }
+    let files = 0, ready = 0, fetch = 0;
+    for (const { key, parts } of needs) {
+      const info = models[key]!;
+      const n = Math.min(parts, info.parts.length);
+      const st = modelStatus?.[key];
+      files += n;
+      ready += Math.min(n, st?.loaded ?? 0);
+      fetch += info.parts.slice(Math.min(n, st?.cached ?? 0), n).reduce((sum, p) => sum + p.bytes, 0);
+    }
+    if (usesLlm && llmManifest) {
+      files += 1;
+      if (llmStatus?.loaded) ready += 1;
+      if (!llmStatus?.cached) fetch += llmManifest.files.model.bytes + llmManifest.files.tokenizer.bytes;
+    }
+    if ((modelStatus || !needs.length) && (llmStatus || !usesLlm) && ready >= files) {
+      return { state: 'ready', label: 'Models ready', title: `All ${files} model files this workflow uses are loaded; Run starts at once.` };
+    }
+    return {
+      state: 'needed',
+      label: 'Preload',
+      title: `Load the ${files} model files this workflow uses now${fetch ? `, downloading ${mb(fetch)}` : ' (already downloaded)'}, so that Run starts at once. `
+        + 'Downloaded models stay in this browser, also for use without the internet.',
+    };
+  }, [engineInfo, needs, modelStatus, preloading, usesLlm, llmManifest, llmStatus]);
+
   const studio: Studio = useMemo(
     () => ({ executor, workflow: name, engine: engineInfo, samples, running, setParams, setType, setView }),
     [executor, name, engineInfo, samples, running, setParams, setType, setView],
@@ -337,7 +442,8 @@ export function App() {
 
   // a pipeline needs every model its steps use; until the engine has started, assume they are there
   const missing = (wf: WorkflowFile) =>
-    !!engineInfo && wf.nodes.some((n) => { const m = SPECS[n.type]?.model; return !!m && !engineInfo.manifest.models[m]; });
+    (!!engineInfo && wf.nodes.some((n) => { const m = SPECS[n.type]?.model; return !!m && !engineInfo.manifest.models[m]; }))
+    || (llmManifest === null && !online && wf.nodes.some((n) => SPECS[n.type]?.llm));
 
   if (view === 'home') {
     return (
@@ -348,8 +454,8 @@ export function App() {
 
   return (
     <StudioContext.Provider value={studio}>
-      <div className="app">
-        <TopBar name={name} engine={engineInfo} engineError={engineError} running={running} lastRun={lastRun} onRun={() => void run()} onStop={() => executor.stop()} onSave={save} onOpen={(f) => void open(f)} appearance={appearance} theme={theme} onAppearance={setAppearance} account={account} onSignOut={() => void api.logout().finally(() => setAccount({ mode: 'signin' }))} onHome={() => go('home')} />
+      <div className="app" style={{ '--inspector-w': `${inspectorW}px` } as CSSProperties}>
+        <TopBar name={name} engine={engineInfo} engineError={engineError} gpu={gpu} onGpu={switchGpu} preload={preloadState} onPreload={() => void preload()} running={running} stopping={stopping} lastRun={lastRun} onRun={() => void run()} onStop={() => { setStopping(true); executor.stop(); stopWriting(); }} onSave={save} onOpen={(f) => void open(f)} appearance={appearance} theme={theme} onAppearance={setAppearance} account={account} onSignOut={() => void api.logout().finally(() => setAccount({ mode: 'signin' }))} onHome={() => go('home')} />
         <Sidebar current={name} onLoad={(wf) => load(wf)} onAdd={(t) => addNode(t)} server={account.mode === 'ready'} />
         <main className="canvas" onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} onDrop={onDrop}>
           <ReactFlow<StudioNode, Edge>
@@ -372,7 +478,11 @@ export function App() {
             <MiniMap pannable zoomable nodeColor={(n) => `var(--g-${SPECS[(n.data as StudioNodeData).type]?.group ?? 'input'})`} maskColor="var(--mask)" />
           </ReactFlow>
         </main>
-        <Inspector node={selectedNode} />
+        <div className="inspector-cell">
+          <Grip axis="x" sign={-1} value={inspectorW} min={300} max={inspectorMax} onChange={setInspectorW}
+                onReset={() => setInspectorW(INSPECTOR_W)} label="Drag to change the width of the inspector" />
+          <Inspector node={selectedNode} />
+        </div>
         {(account.mode === 'ready' || account.mode === 'offline') && (
           <PerfBar engine={engineInfo} browserStep={browserNode && SPECS[browserNode.data.type]?.title} lastRun={lastRun} server={account.mode === 'ready'} />
         )}

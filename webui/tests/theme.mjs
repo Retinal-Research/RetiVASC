@@ -6,7 +6,7 @@ import { chromium } from 'playwright-core';
 
 const SHOTS = join(import.meta.dirname, '..', '..', 'tools', 'shots');
 mkdirSync(SHOTS, { recursive: true });
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-unsafe-webgpu'] });
+const browser = await chromium.launch({ channel: process.env.BROWSER_CHANNEL ?? 'chrome', headless: true, args: ['--enable-unsafe-webgpu'] });
 const context = await browser.newContext({ viewport: { width: 1680, height: 1000 }, colorScheme: 'dark' });
 const page = await context.newPage();
 const problems = [];

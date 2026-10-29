@@ -11,8 +11,10 @@ const SHOTS = join(import.meta.dirname, '..', '..', 'tools', 'shots');
 let failed = 0;
 const ok = (cond, msg) => { console.log(`${cond ? 'ok  ' : 'FAIL'} ${msg}`); if (!cond) failed++; };
 
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-unsafe-webgpu'] });
+const browser = await chromium.launch({ channel: process.env.BROWSER_CHANNEL ?? 'chrome', headless: true, args: ['--enable-unsafe-webgpu'] });
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+// the sidebar folds everything but the pipelines; open the sections these checks click into
+await page.addInitScript(() => { for (const k of ['singles', 'server', 'skills']) localStorage.setItem(`retivasc-studio-fold-${k}`, 'true'); });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 await page.goto(URL + '#studio');

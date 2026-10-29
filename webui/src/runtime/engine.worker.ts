@@ -14,7 +14,7 @@ import { runM3 } from '../automorph/m3/m3';
 import { resizePIL } from '../automorph/resample';
 import type { M0Geometry, RGBImage } from '../automorph/types';
 import { cropFundus, fundusBounds } from '../vascx/prep';
-import type { Backend, EngineInfo, EngineMessage, EngineOp, ImageHandle, Manifest, ModelInfo, ModelKey, ModelSet, Progress, Timing } from './protocol';
+import type { Backend, EngineInfo, EngineMessage, EngineOp, GpuChoice, ImageHandle, Manifest, ModelInfo, ModelKey, ModelNeed, ModelSet, ModelStatus, Progress, Timing } from './protocol';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -59,7 +59,11 @@ self.onmessage = async (event: MessageEvent<{ id: number } & EngineOp>) => {
 async function handle(req: EngineOp, progress: (p: Progress) => void): Promise<[unknown, Transferable[]]> {
   switch (req.op) {
     case 'init':
-      return [await init(req.base, req.models, req.vascx, req.tpot), []];
+      return [await init(req.base, req.models, req.vascx, req.tpot, req.gpu), []];
+    case 'status':
+      return [await status(), []];
+    case 'preload':
+      return [await preload(req.models, progress), []];
     case 'decode': {
       progress({ stage: 'decode', message: 'Decoding image' });
       const handle = await decode(req.bytes);
@@ -128,7 +132,7 @@ async function handle(req: EngineOp, progress: (p: Progress) => void): Promise<[
 
 const slash = (url = '') => (url && !url.endsWith('/') ? `${url}/` : url);
 
-async function init(baseUrl: string, models = '', vascx = '', tpot = ''): Promise<EngineInfo> {
+async function init(baseUrl: string, models = '', vascx = '', tpot = '', gpu: GpuChoice = 'high-performance'): Promise<EngineInfo> {
   base = baseUrl;
   modelsUrl = slash(models);
   vascxUrl = slash(vascx);
@@ -149,10 +153,11 @@ async function init(baseUrl: string, models = '', vascx = '', tpot = ''): Promis
   ort.env.wasm.numThreads = threads;
   ort.env.wasm.wasmPaths = { mjs: new URL(ortGlueUrl, self.location.href).href, wasm: new URL(ortWasmUrl, self.location.href).href };
   let adapterName = 'CPU';
-  const gpu = (navigator as Navigator & { gpu?: GPU }).gpu;
-  if (gpu) {
+  // "cpu" leaves the graphics card alone; otherwise the browser picks the faster or the power-saving one
+  const webgpu = gpu === 'cpu' ? undefined : (navigator as Navigator & { gpu?: GPU }).gpu;
+  if (webgpu) {
     try {
-      const adapter = await gpu.requestAdapter({ powerPreference: 'high-performance' });
+      const adapter = await webgpu.requestAdapter({ powerPreference: gpu === 'low-power' ? 'low-power' : 'high-performance' });
       if (adapter) {
         backend = 'webgpu';
         const info = adapter.info;
@@ -167,7 +172,7 @@ async function init(baseUrl: string, models = '', vascx = '', tpot = ''): Promis
       backend = 'wasm';
     }
   }
-  return { backend, adapter: adapterName, threads, manifest };
+  return { backend, gpu, adapter: adapterName, threads, manifest };
 }
 
 function take(imageId: string): RGBImage {
@@ -239,11 +244,17 @@ function partUrl(key: ModelKey, file: string): string {
   }
 }
 
-async function download(key: ModelKey, index: number, progress?: (p: Progress) => void): Promise<Uint8Array> {
+/** A model file's URL, and its key in the browser's cache (a new checksum is a new file). */
+function where(key: ModelKey, index: number) {
   const info = part(key, index);
   // an AutoMorph model host keeps one folder per model (quality/, vessel/, artery_vein/, disc_cup/); models/ here is flat
   const url = new URL(partUrl(key, info.file), self.location.href).href;
-  const cacheKey = `${url}?sha256=${info.sha256.slice(0, 16)}`;
+  return { url, cacheKey: `${url}?sha256=${info.sha256.slice(0, 16)}` };
+}
+
+async function download(key: ModelKey, index: number, progress?: (p: Progress) => void): Promise<Uint8Array> {
+  const info = part(key, index);
+  const { url, cacheKey } = where(key, index);
   const cache = 'caches' in self ? await caches.open(CACHE_NAME) : undefined;
   const hit = await cache?.match(cacheKey);
   if (hit) return new Uint8Array(await hit.arrayBuffer());
@@ -333,6 +344,49 @@ async function session(key: ModelKey, index: number, progress: (p: Progress) => 
     pending.then(clear, clear);
   }
   return pending;
+}
+
+/** For each model this site has: its parts, how many are in this browser's cache, how many are ready to run. */
+async function isCached(key: ModelKey, index: number): Promise<boolean> {
+  if (!('caches' in self)) return false;
+  return !!(await (await caches.open(CACHE_NAME)).match(where(key, index).cacheKey));
+}
+
+async function status(): Promise<ModelStatus> {
+  if (!manifest) throw new Error('engine not initialised');
+  const out: ModelStatus = {};
+  for (const [key, info] of Object.entries(manifest.models) as Array<[ModelKey, ModelInfo | undefined]>) {
+    if (!info) continue;
+    let cached = 0, loaded = 0;
+    for (let i = 0; i < info.parts.length; i++) {
+      if (sessions.has(`${key}#${i}`)) loaded++;
+      if (await isCached(key, i)) cached++;
+    }
+    out[key] = { parts: info.parts.length, cached, loaded };
+  }
+  return out;
+}
+
+/**
+ * Download and prepare the models a workflow uses, before Run, so that Run starts at once. Parts are
+ * made ready while they fit in the memory budget; the rest are only downloaded, which is also what
+ * makes a model available without the internet later.
+ */
+async function preload(needs: ModelNeed[], progress: (p: Progress) => void): Promise<ModelStatus> {
+  const list = needs.flatMap(({ key, parts }) => Array.from({ length: Math.min(parts, info(key).parts.length) }, (_, i) => ({ key, i })));
+  let room = SESSION_BUDGET;
+  for (const [n, { key, i }] of list.entries()) {
+    const p = part(key, i);
+    const bytes = p.bytes * (info(key).float32 ? 1 : 2);
+    const say = (q: Progress) => progress({ ...q, message: `Model ${n + 1} of ${list.length} · ${info(key).label} · ${q.message}`, fraction: (n + (q.fraction ?? 0)) / list.length });
+    if (bytes <= room) {
+      room -= bytes;
+      await session(key, i, say);
+    } else if (!(await isCached(key, i))) {
+      await download(key, i, say);
+    }
+  }
+  return status();
 }
 
 /** Run a model on one image. An ensemble runs every member on the same input and sums the

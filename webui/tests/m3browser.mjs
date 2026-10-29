@@ -8,7 +8,7 @@ const REF = process.env.M3_REF;
 const URL = process.env.STUDIO_URL ?? 'http://localhost:8081/';
 const cases = JSON.parse(readFileSync(join(REF, 'cases.json'), 'utf8'));
 
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-unsafe-webgpu'] });
+const browser = await chromium.launch({ channel: process.env.BROWSER_CHANNEL ?? 'chrome', headless: true, args: ['--enable-unsafe-webgpu'] });
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 await page.goto(URL + '#studio');
 await page.waitForFunction(() => window.__studio?.engine(), null, { timeout: 120_000 });

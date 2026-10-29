@@ -126,5 +126,8 @@ export interface FeaturesValue {
   forced: boolean;
 }
 
-export type NodeValue = FundusValue | M0Value | QualityValue | VesselValue | ArteryVeinValue | DiscCupValue | FoveaValue | RunValue | SheetValue | AnalysisValue | FeaturesValue;
+/** The AI report: the language model's text and the numbers it was given (engine/report.ts). */
+export type ReportValue = import('./report').ReportValue;
+
+export type NodeValue = FundusValue | M0Value | QualityValue | VesselValue | ArteryVeinValue | DiscCupValue | FoveaValue | RunValue | SheetValue | AnalysisValue | FeaturesValue | ReportValue;
 export type PortType = NodeValue['kind'];

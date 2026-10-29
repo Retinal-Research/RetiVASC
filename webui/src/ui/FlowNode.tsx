@@ -11,6 +11,7 @@ import { countLabels, isLayer, LAYER_LABEL, layerCanvas, type LayerKind } from '
 import { AnalysisView } from './AnalysisPanel';
 import { FolderBody, FolderFoot } from './FolderPanel';
 import { FeaturesView } from './FeaturesPanel';
+import { Markdown } from './Markdown';
 import { ANALYSIS_STEPS, SheetProgress, SheetSummaryView } from './SheetPanel';
 import { DevicePick, FilePick, StudyPhotosBody } from './StudyNodes';
 import { Thumb } from './Thumb';
@@ -258,6 +259,39 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
             </label>
             {v ? <FeaturesView value={v} /> : <div className="empty">Connect M0 and the three M2 steps, then run</div>}
           </>
+        );
+      }
+      case 'ai.report': {
+        const v = out?.kind === 'report' ? out : undefined;
+        const text = data.state.status === 'running' ? data.state.text : v?.text;
+        return (
+          <div className="ai">
+            <div className="row">
+              <select className="select" value={String(data.params.engine ?? 'auto')} onChange={(e) => studio.setParams(id, { engine: e.target.value })}
+                      title="Who writes the report. The lab's API gets only the numbers, through the RetiVASC server, never the photographs.">
+                <option value="auto">Lab API, else this computer</option>
+                <option value="online">Lab API only</option>
+                <option value="local">This computer only</option>
+              </select>
+              <select className="select" value={String(data.params.language ?? 'en')} onChange={(e) => studio.setParams(id, { language: e.target.value })} title="Language of the report">
+                <option value="en">English</option>
+                <option value="zh">中文</option>
+              </select>
+            </div>
+            <input className="select" value={String(data.params.focus ?? '')} placeholder="Focus (optional), e.g. arteries and veins"
+                   onChange={(e) => studio.setParams(id, { focus: e.target.value })} />
+            {text ? (
+              <div className="ai-text"><Markdown text={text} /></div>
+            ) : (
+              <div className="empty">Connect the steps to report on, then Run. After a folder, it writes one report on all photos.</div>
+            )}
+            {v && (
+              <div className="meta">
+                {v.writer === 'online' ? `${v.model} · the lab’s API` : `${v.model} on this computer · ${v.result?.tokensPerSecond.toFixed(0)} tokens/s`}
+                {v.unchecked.length || v.judged.length ? ' · see the checks' : ' · numbers checked'}
+              </div>
+            )}
+          </div>
         );
       }
       case 'input.folder':

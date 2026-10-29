@@ -1,17 +1,31 @@
 import type { RunSummary } from '../engine/executor';
 import type { Appearance, Theme } from './appearance';
 import { AppearanceMenu } from './AppearanceMenu';
-import type { EngineInfo } from '../runtime/protocol';
+import type { EngineInfo, GpuChoice } from '../runtime/protocol';
+import { ComputeMenu } from './ComputeMenu';
 import { ms } from './format';
 import { SUBTITLE } from './Home';
 import { Logo } from './Logo';
 import type { AccountState } from './Login';
 
+/** The Preload button: the models the workflow uses, loaded before Run so that Run starts at once. */
+export interface PreloadState {
+  state: 'none' | 'needed' | 'loading' | 'ready';
+  label: string;
+  title: string;
+}
+
 interface Props {
   name: string;
   engine?: EngineInfo;
   engineError?: string;
+  gpu: GpuChoice;
+  onGpu: (gpu: GpuChoice) => void;
+  preload: PreloadState;
+  onPreload: () => void;
   running: boolean;
+  /** Stop was pressed; the step that is running finishes first */
+  stopping: boolean;
   lastRun?: RunSummary;
   onRun: () => void;
   /** stop after the step that is running (a folder run keeps the photos it finished) */
@@ -27,12 +41,7 @@ interface Props {
   onHome: () => void;
 }
 
-export function TopBar({ name, engine, engineError, running, lastRun, onRun, onStop, onSave, onOpen, appearance, theme, onAppearance, account, onSignOut, onHome }: Props) {
-  let chip = <span className="engine wait"><span className="sdot" />Starting engine…</span>;
-  if (engineError) chip = <span className="engine bad" title={engineError}><span className="sdot" />Engine failed to start</span>;
-  else if (engine?.backend === 'webgpu') chip = <span className="engine ok" title={engine.adapter}><span className="sdot" />WebGPU · {engine.adapter}</span>;
-  else if (engine) chip = <span className="engine warn" title="No WebGPU in this browser; models run on the CPU and are much slower"><span className="sdot" />CPU only · {engine.threads} thread{engine.threads === 1 ? '' : 's'}</span>;
-
+export function TopBar({ name, engine, engineError, gpu, onGpu, preload, onPreload, running, stopping, lastRun, onRun, onStop, onSave, onOpen, appearance, theme, onAppearance, account, onSignOut, onHome }: Props) {
   return (
     <header className="topbar">
       <button className="brand" onClick={onHome} title="Home page">
@@ -48,7 +57,17 @@ export function TopBar({ name, engine, engineError, running, lastRun, onRun, onS
           {running ? <span className="spinner" /> : <span className="play" />}
           {running ? 'Running…' : 'Run'}
         </button>
-        {running && <button className="btn" onClick={onStop} title="Stop after the step that is running">Stop</button>}
+        {running && (
+          <button className="btn danger" onClick={onStop} disabled={stopping} title="Stop after the step that is running">
+            <span className="stopsq" />{stopping ? 'Stopping…' : 'Stop'}
+          </button>
+        )}
+        {!running && preload.state !== 'none' && (
+          <button className={`btn preload ${preload.state}`} onClick={onPreload} disabled={preload.state !== 'needed' || !engine} title={preload.title}>
+            {preload.state === 'loading' ? <span className="spinner" /> : <span className={preload.state === 'ready' ? 'tick' : 'down'} aria-hidden="true" />}
+            {preload.label}
+          </button>
+        )}
         {lastRun && !running && (
           <span className={`lastrun ${lastRun.errors ? 'bad' : lastRun.blocked ? 'warn' : ''}`}>
             {lastRun.errors
@@ -67,7 +86,7 @@ export function TopBar({ name, engine, engineError, running, lastRun, onRun, onS
         </label>
       </div>
       <div className="status">
-        {chip}
+        <ComputeMenu engine={engine} engineError={engineError} gpu={gpu} running={running || preload.state === 'loading'} onGpu={onGpu} />
         {account.mode === 'ready' ? (
           <span className="private" title="Browser steps run in this tab; server steps run on the RetiVASC server">
             {account.account.mode === 'open'
@@ -75,7 +94,7 @@ export function TopBar({ name, engine, engineError, running, lastRun, onRun, onS
               : <>{account.account.name}{account.account.admin ? ' (admin)' : ''} · <button className="linkbtn" onClick={onSignOut}>Sign out</button></>}
           </span>
         ) : (
-          <span className="private" title="Photos are decoded and analysed inside this browser tab">Runs on this device · nothing is uploaded</span>
+          <span className="private" title="Photos are decoded and analysed inside this browser tab">Images are stored and processed locally</span>
         )}
         <AppearanceMenu appearance={appearance} theme={theme} onChange={onAppearance} />
       </div>

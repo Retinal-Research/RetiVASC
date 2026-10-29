@@ -32,6 +32,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__, devices, monitor
+from . import report as report_service
 from .accounts import Accounts
 from .jobs import JobStore
 from .settings import Settings
@@ -50,7 +51,8 @@ PHOTO_TYPES = {".tif", ".tiff", ".jpg", ".jpeg", ".png", ".bmp"}
 SHEET = importlib.util.find_spec("retivasc_sheet") is not None
 
 
-def create_app(settings: Settings, runner=None, start_worker: bool = True, webui_dist: Path | None = None) -> FastAPI:
+def create_app(settings: Settings, runner=None, start_worker: bool = True, webui_dist: Path | None = None,
+               report: report_service.ReportSettings | None = None) -> FastAPI:
     app = FastAPI(title="RetiVASC", version=__version__, docs_url=None, redoc_url=None)
     accounts = Accounts(settings.data_dir)
     store = JobStore(settings.jobs_dir, settings.device, runner)
@@ -83,6 +85,9 @@ def create_app(settings: Settings, runner=None, start_worker: bool = True, webui
         if request.url.path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-store"
         return response
+
+    # AI reports through the lab's API: no sign-in, so the public site can use it; limited per IP
+    report_service.install(app, report or report_service.load())
 
     open_mode = settings.auth == "open"
 

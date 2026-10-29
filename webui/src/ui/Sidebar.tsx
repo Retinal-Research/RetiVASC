@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { GROUP_LABEL, SPEC_LIST, type NodeGroup } from '../engine/specs';
 import { WORKFLOWS, type WorkflowFile } from '../engine/workflows';
 import { api } from '../server/api';
 import { JobsPanel } from './JobsPanel';
+import { isBool, useRemembered } from '../remember';
 
 export const DRAG_TYPE = 'application/x-retivasc-node';
 
@@ -14,7 +15,7 @@ interface Props {
   server: boolean;
 }
 
-const GROUPS: NodeGroup[] = ['input', 'm0', 'enhance', 'm1', 'm2', 'm3', 'vascx', 'view', 'server', 'study'];
+const GROUPS: NodeGroup[] = ['input', 'm0', 'enhance', 'm1', 'm2', 'm3', 'vascx', 'view', 'ai', 'server', 'study'];
 
 // The study sheet is an optional server module; its steps are shown only where it is installed.
 function useSheet(server: boolean): boolean {
@@ -23,6 +24,22 @@ function useSheet(server: boolean): boolean {
     if (server) api.server().then((i) => setSheet(!!i.features?.sheet), () => setSheet(false));
   }, [server]);
   return sheet;
+}
+
+/** A section that folds away; the browser remembers which ones are open. */
+function Fold({ id, title, count, open: initial = false, sub = false, children }:
+  { id: string; title: string; count?: number; open?: boolean; sub?: boolean; children: ReactNode }) {
+  const [open, setOpen] = useRemembered(`fold-${id}`, initial, isBool);
+  return (
+    <div className={`fold ${sub ? 'sub' : ''} ${open ? 'open' : ''}`}>
+      <button className="fold-head" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span className="chev" aria-hidden="true" />
+        <span>{title}</span>
+        {count !== undefined && <span className="fold-count">{count}</span>}
+      </button>
+      {open && <div className="fold-body">{children}</div>}
+    </div>
+  );
 }
 
 export function Sidebar({ current, onLoad, onAdd, server }: Props) {
@@ -40,22 +57,20 @@ export function Sidebar({ current, onLoad, onAdd, server }: Props) {
   const listed = WORKFLOWS.filter(shown);
   const singles = listed.filter((wf) => wf.section === 'single');
   const onServer = listed.filter((wf) => wf.section === 'server');
+  const groups = GROUPS.filter(groupShown);
   return (
     <aside className="sidebar">
+      {/* the pipelines are what most people want, so they never fold away */}
       <section>
         <h3>Pipeline library</h3>
         {listed.filter((wf) => wf.section === 'pipeline' || !wf.section).map(entry)}
-        {singles.length > 0 && <h4 className="wf-sub">Single steps</h4>}
-        {singles.map(entry)}
-        {onServer.length > 0 && <h4 className="wf-sub">On the RetiVASC server</h4>}
-        {onServer.map(entry)}
       </section>
-      <section>
-        <h3>Skills</h3>
+      {singles.length > 0 && <Fold id="singles" title="Single steps" count={singles.length}>{singles.map(entry)}</Fold>}
+      {onServer.length > 0 && <Fold id="server" title="On the RetiVASC server" count={onServer.length}>{onServer.map(entry)}</Fold>}
+      <Fold id="skills" title="Skills" count={SPEC_LIST.filter((s) => groups.includes(s.group)).length}>
         <p className="faint small">Each skill is one step. Drag it onto the canvas, or click to add.</p>
-        {GROUPS.filter(groupShown).map((g) => (
-          <div key={g} className="lib-group">
-            <div className={`lib-label g-${g}`}>{GROUP_LABEL[g]}</div>
+        {groups.map((g) => (
+          <Fold key={g} id={`skills-${g}`} title={GROUP_LABEL[g]} open sub>
             {SPEC_LIST.filter((s) => s.group === g).map((s) => (
               <button
                 key={s.type}
@@ -74,9 +89,9 @@ export function Sidebar({ current, onLoad, onAdd, server }: Props) {
                 </span>
               </button>
             ))}
-          </div>
+          </Fold>
         ))}
-      </section>
+      </Fold>
       {server && <JobsPanel />}
     </aside>
   );

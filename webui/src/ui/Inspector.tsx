@@ -12,6 +12,8 @@ import { countLabels, isLayer, LAYER_LABEL, layerCanvas, LEGEND, type LayerKind,
 import { AnalysisView } from './AnalysisPanel';
 import { FolderInspector } from './FolderPanel';
 import { FeaturesView } from './FeaturesPanel';
+import { Markdown } from './Markdown';
+import { ReportView } from './ReportPanel';
 import { ANALYSIS_STEPS, SheetProgress, SheetSummaryView } from './SheetPanel';
 
 function Rows({ rows }: { rows: Array<[string, ReactNode]> }) {
@@ -56,7 +58,7 @@ export function Inspector({ node }: { node?: StudioNode }) {
         <div className="inspector-empty">
           <h2>Select a step</h2>
           <p>Click any box on the canvas to see its result at full size, the model it used and how long it took.</p>
-          <p className="faint">Every step runs inside this browser. Photos are not uploaded anywhere.</p>
+          <p className="faint">Every step runs inside this browser. Images are stored and processed locally.</p>
         </div>
       </aside>
     );
@@ -153,6 +155,30 @@ export function Inspector({ node }: { node?: StudioNode }) {
         {head}
         <div className="iscroll">
           <FolderInspector nodeId={node.id} params={node.data.params} />
+        </div>
+      </aside>
+    );
+  }
+  if (node.data.type === 'ai.report') {
+    const st = node.data.state;
+    return (
+      <aside className="inspector">
+        {head}
+        <div className="iscroll">
+          {st.status === 'running' ? (
+            <>
+              <p className="faint">{st.message}</p>
+              {st.text && <Markdown text={st.text} />}
+            </>
+          ) : out?.kind === 'report' ? (
+            <ReportView key={out.chat} value={out} workflow={studio.workflow} />
+          ) : (
+            <p className="footnote">
+              Connect any steps to this one and press Run: a language model on this computer writes up their results, and you can then
+              ask about them. After a Photo folder it writes one report on all the photos. Nothing leaves this computer.
+            </p>
+          )}
+          {st.status === 'error' && <p className="error">{st.message}</p>}
         </div>
       </aside>
     );
