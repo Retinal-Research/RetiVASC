@@ -192,8 +192,6 @@ export class Executor {
       if (stale.length) void engine.call({ op: 'release', ids: stale });
 
       this.types = new Map(nodes.map((n) => [n.id, n.type]));
-      this.nodes = new Map(nodes.map((n) => [n.id, n]));
-      this.tried = new Set();
       const sorted = order(nodes, edges).filter((n) => !only || only.has(n.id));
       const folderNode = sorted.find((n) => n.type === 'input.folder');
       const perPhoto = folderNode ? downstreamOf(edges, folderNode.id) : new Set<string>();
@@ -237,30 +235,8 @@ export class Executor {
   }
 
   /** One node: wait for its inputs, reuse an unchanged result, or run it. */
-  private nodes = new Map<string, GraphNode>();
-  /** standby steps already tried in this pass (or this photo) */
-  private tried = new Set<string>();
-
-  /** A standby step (params.standby) runs only when a step needs it: a fallback whose primary failed. */
-  private isStandby(node: GraphNode): boolean {
-    return node.params.standby === true;
-  }
-
-  /** Whether a source has a result for this pass; a standby source is run now, once, if it has not been. */
-  private async ready(id: string, edges: GraphEdge[], finished: Map<string, string>, onState: (id: string, state: NodeState) => void,
-                      batch?: BatchItem): Promise<boolean> {
-    if (finished.has(id)) return true;
-    const node = this.nodes.get(id);
-    if (!node || !this.isStandby(node) || this.tried.has(id)) return false;
-    this.tried.add(id);
-    // its own sources first (they are earlier steps, usually finished already)
-    for (const e of edges.filter((x) => x.target === id)) await this.ready(e.source, edges, finished, onState, batch);
-    await this.step(node, edges, finished, onState, batch, undefined, true);
-    return finished.has(id);
-  }
-
   private async step(node: GraphNode, edges: GraphEdge[], finished: Map<string, string>, onState: (id: string, state: NodeState) => void,
-                     batch?: BatchItem, cohort?: Cohort, needed = false): Promise<StepResult> {
+                     batch?: BatchItem, cohort?: Cohort): Promise<StepResult> {
     const spec = SPECS[node.type];
     if (!spec) {
       const message = `unknown node type ${node.type}`;
@@ -270,11 +246,6 @@ export class Executor {
     if (spec.soon) {
       // a placeholder: nothing to run yet, counted neither as run nor as waiting
       onState(node.id, { status: 'idle', message: 'Coming soon', version: this.version });
-      return { status: 'cached' };
-    }
-    if (this.isStandby(node) && !needed) {
-      // a fallback that nothing has needed (yet): it runs when a step after it does
-      if (!finished.has(node.id)) onState(node.id, { status: 'idle', message: 'Standby: runs if the step before it in line fails', version: this.version });
       return { status: 'cached' };
     }
     const inputs: Record<string, NodeValue | undefined> = {};
@@ -294,24 +265,20 @@ export class Executor {
         // several sources at once (an AI report's context, a results table): those that finished, whatever failed
         for (const edge of connected) {
           if (cohort && !SPECS[this.types.get(edge.source) ?? '']?.cohort) continue;
-          if (!(await this.ready(edge.source, edges, finished, onState, batch))) continue;
+          const upstream = finished.get(edge.source);
+          if (upstream === undefined) continue;
           const value = this.records.get(edge.source)?.outputs[edge.sourceHandle];
           if (value) (many[port.id] ??= []).push({ from: edge.source, type: this.types.get(edge.source) ?? '', value });
-          parts.push(`${port.id}<${edge.source}.${edge.sourceHandle}#${finished.get(edge.source)}`);
+          parts.push(`${port.id}<${edge.source}.${edge.sourceHandle}#${upstream}`);
         }
         continue;
       }
-      // one source, in a line of fallbacks: the first that has a result (a standby one runs when reached)
-      let found = false;
-      for (const edge of connected) {
-        if (cohort && !SPECS[this.types.get(edge.source) ?? '']?.cohort) continue;
-        if (!(await this.ready(edge.source, edges, finished, onState, batch))) continue;
-        inputs[port.id] = this.records.get(edge.source)?.outputs[edge.sourceHandle];
-        parts.push(`${port.id}<${edge.source}.${edge.sourceHandle}#${finished.get(edge.source)}`);
-        found = true;
-        break;
-      }
-      if (!found && !port.optional) waiting ??= 'An earlier step did not finish';
+      const edge = connected[0];
+      if (cohort && !SPECS[this.types.get(edge.source) ?? '']?.cohort) continue;
+      const upstream = finished.get(edge.source);
+      if (upstream === undefined) { waiting ??= 'An earlier step did not finish'; continue; }
+      inputs[port.id] = this.records.get(edge.source)?.outputs[edge.sourceHandle];
+      parts.push(`${port.id}<${edge.source}.${edge.sourceHandle}#${upstream}`);
     }
     if (waiting) { onState(node.id, { status: 'blocked', message: waiting, version: this.version }); return { status: 'blocked' }; }
 
@@ -391,12 +358,11 @@ export class Executor {
         const photoFinished = new Map(finished);
         let failed: string | undefined;
         let stopped = false;
-        this.tried = new Set();  // standby steps may be needed afresh for each photo
         for (const node of steps) {
           if (this.stopRequested) { stopped = true; break; }
           const r = await this.step(node, edges, photoFinished, onState, batch);
           this.count(tally, r);
-          // a failed step does not stop the photo: its fallbacks and the steps that do not need it go on
+          // a failed step does not stop the photo: the steps that do not need it go on
           if (r.status === 'error') failed ??= `${SPECS[node.type]?.title ?? node.type}: ${r.message}`;
         }
         if (stopped) break;

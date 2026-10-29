@@ -1045,10 +1045,6 @@ button.sfile { background: none; cursor: pointer; text-align: left; font: inheri
 .launch-skip { color: var(--faint); font-size: 12px; }
 @media (prefers-reduced-motion: reduce) { .launch, .launch-hint { transition: none; animation: none; } }
 
-/* a fallback step on standby */
-.node.standby { border-style: dashed; }
-.node.standby:not(.st-done):not(.st-running) { opacity: 0.72; }
-.node-standby { margin-top: 4px; font-size: 10.5px; color: var(--muted); }
 
 /* vessel colours in the appearance menu */
 .vessel-colours { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; margin: 6px 0; }

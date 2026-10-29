@@ -85,18 +85,6 @@ function styledEdge(nodes: StudioNode[], e: { source: string; sourceHandle: stri
   };
 }
 
-/** Edges after the first into a one-source port are its fallbacks (used in order if the ones before fail): dashed. */
-function markFallbacks(nodes: StudioNode[], edges: Edge[]): Edge[] {
-  const seen = new Set<string>();
-  return edges.map((e) => {
-    const key = `${e.target}.${e.targetHandle}`;
-    const multi = !!port(nodes, e.target, e.targetHandle ?? null, 'target')?.multi;
-    const fallback = !multi && seen.has(key);
-    seen.add(key);
-    return fallback ? { ...e, style: { ...e.style, strokeDasharray: '6 5', opacity: 0.55 } } : e;
-  });
-}
-
 function toNodes(wf: WorkflowFile): StudioNode[] {
   return wf.nodes.map((n) => ({
     id: n.id,
@@ -243,12 +231,12 @@ export function App() {
       wf = { ...wf, edges: wf.edges.map((e) => (ai.has(e.target) && e.targetHandle === 'results' ? { ...e, targetHandle: 'context' } : e)) };
       const ns = toNodes(wf);
       setNodes(ns);
-      setEdges(markFallbacks(ns, wf.edges.map((e) => styledEdge(ns, e))));
+      setEdges(wf.edges.map((e) => styledEdge(ns, e)));
       setName(wf.name);
       setSelected(undefined);
       setLastRun(undefined);
       nodesRef.current = ns;
-      edgesRef.current = markFallbacks(ns, wf.edges.map((e) => styledEdge(ns, e)));
+      edgesRef.current = wf.edges.map((e) => styledEdge(ns, e));
       fitPending.current = true;
       if (autorun) void run();
     },

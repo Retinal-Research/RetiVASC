@@ -412,7 +412,7 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
 
   const s = data.state;
   return (
-    <div className={`node g-${spec.group} st-${s.status}${selected ? ' selected' : ''}${data.params.standby ? ' standby' : ''}`}>
+    <div className={`node g-${spec.group} st-${s.status}${selected ? ' selected' : ''}`}>
       <header className="node-head">
         <div className="node-kicker">
           <span className="kdot" />
@@ -422,7 +422,6 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
         </div>
         <div className="node-title">{spec.title}{spec.soon && <span className="soon">Coming soon</span>}</div>
         <div className="node-sub">{spec.subtitle}</div>
-        {data.params.standby === true && <div className="node-standby">Standby · runs only if the step in front of it fails</div>}
       </header>
       {(spec.inputs.length > 0 || spec.outputs.length > 0) && (
         <div className="ports">
