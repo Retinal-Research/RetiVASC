@@ -2,11 +2,19 @@
 
 import { AV, DISC } from '../automorph/postprocess';
 import type { ArteryVeinValue, BifurcationsValue, DiscCupValue, FoveaValue, NodeValue, VesselValue } from '../engine/values';
+import { coloursVersion, rgb, seen, vesselColours } from './vesselColours';
 
 export type LayerKind = 'vessel' | 'av' | 'disc' | 'fovea';
 export type LayerValue = VesselValue | ArteryVeinValue | DiscCupValue | FoveaValue;
 
 export const LAYER_LABEL: Record<LayerKind, string> = { vessel: 'Vessels', av: 'Artery / vein', disc: 'Disc & cup', fovea: 'Fovea' };
+
+/** The legend of a layer, in the colours it shows (vesselColours.ts) */
+export function legend(kind: LayerKind): Array<[string, string]> {
+  if (kind === 'vessel') return [['Vessel', seen('vessel')]];
+  if (kind === 'av') return [['Artery', seen('artery')], ['Vein', seen('vein')], ['Crossing', seen('crossing')]];
+  return LEGEND[kind];
+}
 
 export const LEGEND: Record<LayerKind, Array<[string, string]>> = {
   vessel: [['Vessel', '#2ee6f2']],
@@ -15,7 +23,8 @@ export const LEGEND: Record<LayerKind, Array<[string, string]>> = {
   fovea: [['Fovea', '#ffffff']],
 };
 
-const cache = new WeakMap<object, HTMLCanvasElement>();
+// drawn layers, per result and per set of vessel colours
+const cache = new WeakMap<object, { v: number; canvas: HTMLCanvasElement }>();
 
 function canvasFrom(width: number, height: number, paint: (px: Uint8ClampedArray) => void): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
@@ -39,8 +48,9 @@ function put(px: Uint8ClampedArray, i: number, r: number, g: number, b: number, 
 /** RGBA layer at model resolution, built once per result. */
 export function layerCanvas(value: LayerValue): HTMLCanvasElement {
   const hit = cache.get(value);
-  if (hit) return hit;
+  if (hit && hit.v === coloursVersion()) return hit.canvas;
   let canvas: HTMLCanvasElement;
+  const colours = vesselColours();
   if (value.kind === 'fovea') {
     // a ring and a cross at the fovea, on a 512 canvas over the whole base image
     const n = 512, x = (value.x / value.size) * n, y = (value.y / value.size) * n;
@@ -55,22 +65,24 @@ export function layerCanvas(value: LayerValue): HTMLCanvasElement {
     g.lineWidth = 2.5;
     g.beginPath(); g.arc(x, y, 13, 0, 2 * Math.PI); g.moveTo(x - 22, y); g.lineTo(x - 6, y); g.moveTo(x + 6, y); g.lineTo(x + 22, y);
     g.moveTo(x, y - 22); g.lineTo(x, y - 6); g.moveTo(x, y + 6); g.lineTo(x, y + 22); g.stroke();
-    cache.set(value, canvas);
+    cache.set(value, { v: coloursVersion(), canvas });
     return canvas;
   }
   if (value.kind === 'vessel') {
     const { size, mask } = value;
     canvas = canvasFrom(size, size, (px) => {
-      for (let i = 0; i < mask.length; i++) if (mask[i]) put(px, i, 46, 230, 242, 235);
+      const [r, g, b] = rgb(colours.vessel);
+      for (let i = 0; i < mask.length; i++) if (mask[i]) put(px, i, r, g, b, 235);
     });
   } else if (value.kind === 'av') {
     const { width, height, labels } = value.map;
     canvas = canvasFrom(width, height, (px) => {
+      const [a, v, x] = [rgb(colours.artery), rgb(colours.vein), rgb(colours.crossing)];
       for (let i = 0; i < labels.length; i++) {
         const l = labels[i];
-        if (l === AV.artery) put(px, i, 255, 75, 75, 235);
-        else if (l === AV.vein) put(px, i, 75, 139, 255, 235);
-        else if (l === AV.overlap) put(px, i, 61, 220, 132, 235);
+        if (l === AV.artery) put(px, i, a[0], a[1], a[2], 235);
+        else if (l === AV.vein) put(px, i, v[0], v[1], v[2], 235);
+        else if (l === AV.overlap) put(px, i, x[0], x[1], x[2], 235);
       }
     });
   } else {
@@ -92,25 +104,26 @@ export function layerCanvas(value: LayerValue): HTMLCanvasElement {
       }
     });
   }
-  cache.set(value, canvas);
+  cache.set(value, { v: coloursVersion(), canvas });
   return canvas;
 }
 
 export type BranchKind = 'artery' | 'vein';
 export const BRANCH_LABEL: Record<BranchKind, string> = { artery: 'Arteries', vein: 'Veins' };
-export const BRANCH_LEGEND: Array<[string, string]> = [['Artery centreline', '#ff4b4b'], ['Vein centreline', '#4b8bff'], ['Branching point', '#ffd84a'], ['Root', '#3ddc84']];
+export const branchLegend = (): Array<[string, string]> => [['Artery centreline', seen('artery')], ['Vein centreline', seen('vein')], ['Branching point', '#ffd84a'], ['Root', '#3ddc84']];
 
-const branchCache = new WeakMap<BifurcationsValue, Partial<Record<BranchKind, HTMLCanvasElement>>>();
+const branchCache = new WeakMap<BifurcationsValue, { v: number } & Partial<Record<BranchKind, HTMLCanvasElement>>>();
 
 /** RetiFlow's result for one class: its centreline, each branching point with the directions of its two
  *  daughter vessels, and the root the traversal starts from; at twice the map's resolution, so the marks
  *  stay sharp. */
 export function branchCanvas(value: BifurcationsValue, which: BranchKind): HTMLCanvasElement {
-  const held = branchCache.get(value) ?? {};
+  const cached = branchCache.get(value);
+  const held = cached && cached.v === coloursVersion() ? cached : { v: coloursVersion() };
   const hit = held[which];
   if (hit) return hit;
   const n = value.size, s = 2, { centerline, points } = value[which];
-  const [r, g, b] = which === 'artery' ? [255, 75, 75] : [75, 139, 255];
+  const [r, g, b] = rgb(seen(which));
   const canvas = canvasFrom(n * s, n * s, (px) => {
     for (let i = 0; i < centerline.length; i++) {
       if (!centerline[i]) continue;
@@ -160,7 +173,21 @@ export function paint(ctx: CanvasRenderingContext2D, base: ImageBitmap, layers: 
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(base, rect.x, rect.y, rect.w, rect.h);
   ctx.globalAlpha = opacity;
-  for (const layer of layers) ctx.drawImage(layer, rect.x, rect.y, rect.w, rect.h);
+  if (vesselColours().mix && layers.length > 1) {
+    // the layers' light added where they overlap (vessels + arteries = magenta, + veins = cyan), then laid on the photo
+    // at the layers' own resolution (a zoomed view would otherwise ask for a huge canvas)
+    const w = Math.max(...layers.map((l) => l.width)), h = Math.max(...layers.map((l) => l.height));
+    const mix = document.createElement('canvas');
+    mix.width = w;
+    mix.height = h;
+    const m = mix.getContext('2d')!;
+    m.imageSmoothingEnabled = true;
+    m.globalCompositeOperation = 'lighter';
+    for (const layer of layers) m.drawImage(layer, 0, 0, w, h);
+    ctx.drawImage(mix, rect.x, rect.y, rect.w, rect.h);
+  } else {
+    for (const layer of layers) ctx.drawImage(layer, rect.x, rect.y, rect.w, rect.h);
+  }
   ctx.globalAlpha = 1;
 }
 

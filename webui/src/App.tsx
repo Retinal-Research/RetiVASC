@@ -181,20 +181,29 @@ export function App() {
 
   const busy = useRef(false);
   const again = useRef(false);  // a run asked for while another runs (e.g. a workflow opened mid-run)
-  const run = useCallback(async (target?: string): Promise<RunSummary | undefined> => {
+  // quiet: the photo step opening its photo by itself (no Running…, no run summary); a Run pressed meanwhile waits for it
+  const quietRun = useRef<Promise<void> | undefined>(undefined);
+  const run = useCallback(async (target?: string, quiet = false): Promise<RunSummary | undefined> => {
     if (busy.current) {
+      if (quiet) return;
+      if (quietRun.current) {
+        await quietRun.current;
+        return runRef.current(target);
+      }
       again.current = true;
       return;
     }
     busy.current = true;
-    setRunning(true);
+    if (!quiet) setRunning(true);
+    let release = () => {};
+    if (quiet) quietRun.current = new Promise<void>((r) => { release = r; });
     try {
       await engine.boot();
       const graphNodes = nodesRef.current.map((n) => ({ id: n.id, type: n.data.type, params: n.data.params }));
       const graphEdges = edgesRef.current.map((e) => ({ source: e.source, sourceHandle: e.sourceHandle ?? '', target: e.target, targetHandle: e.targetHandle ?? '' }));
       const only = target ? upstream(edgesRef.current, target) : undefined;
       const summary = await executor.run(graphNodes, graphEdges, (id, state) => patchNode(id, { state }), only);
-      setLastRun(summary);
+      if (!quiet) setLastRun(summary);
       void refreshModels();
       return summary;
     } catch (error) {
@@ -202,6 +211,8 @@ export function App() {
       window.alert(error instanceof Error ? error.message : String(error));
     } finally {
       busy.current = false;
+      quietRun.current = undefined;
+      release();
       setRunning(false);
       setStopping(false);
       if (again.current) {
@@ -465,6 +476,12 @@ export function App() {
 
   // the menu of each step, and the × on a selected connection
   const runStep = useCallback((id: string) => { void run(id); }, [run]);
+  // the photo step runs by itself (it only opens the photo, no model): its preview shows at once
+  useEffect(() => {
+    if (!engineInfo || running || view !== 'studio') return;
+    const waiting = nodes.find((n) => n.data.type === 'input.fundus' && n.data.state.status === 'idle' && n.data.params.source);
+    if (waiting) void run(waiting.id, true);
+  }, [engineInfo, running, view, nodes, run]);
   const removeEdge = useCallback((edgeId: string) => {
     const e = edgesRef.current.find((x) => x.id === edgeId);
     setEdges((es) => es.filter((x) => x.id !== edgeId));

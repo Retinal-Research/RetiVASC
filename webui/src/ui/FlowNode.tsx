@@ -13,6 +13,7 @@ import { FolderBody, FolderFoot } from './FolderPanel';
 import { FeaturesView } from './FeaturesPanel';
 import { Markdown } from './Markdown';
 import { ReportProgress } from './ReportPanel';
+import { seen, useVesselColours } from './vesselColours';
 import { TableView } from './TablePanel';
 import { NodeMenu } from './NodeMenu';
 import { DEFAULT_REQUEST } from '../engine/prompt';
@@ -103,6 +104,7 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
     void openFile(file);
   };
 
+  const colours = useVesselColours();  // thumbnails drawn again when the vessel colours change
   const body = useMemo(() => {
     const out = outputs ? Object.values(outputs)[0] : undefined;
     switch (data.type) {
@@ -182,14 +184,16 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
       case 'vascx.av':
       case 'retivasc.rrwnet': {
         const v = out?.kind === 'av' ? out : undefined;
+        // RRWNet gives vessels too: under its arteries and veins, as its AV3 map shows them
+        const under = data.type === 'retivasc.rrwnet' && outputs?.vessel?.kind === 'vessel' ? [layerCanvas(outputs.vessel)] : [];
         const c = v ? countLabels(v.map.labels, 4) : [];
         return (
           <>
-            <Thumb base={v?.base.preview} layers={v ? [layerCanvas(v)] : []} width={THUMB_W} height={THUMB_H} />
+            <Thumb base={v?.base.preview} layers={v ? [...under, layerCanvas(v)] : []} width={THUMB_W} height={THUMB_H} />
             {v && (
               <div className="meta">
-                <span className="dot" style={{ background: '#ff4b4b' }} /> artery {pct(fovShare(c[1], v.map.width, v.base))}
-                <span className="dot" style={{ background: '#4b8bff' }} /> vein {pct(fovShare(c[2], v.map.width, v.base))}
+                <span className="dot" style={{ background: seen('artery', colours) }} /> artery {pct(fovShare(c[1], v.map.width, v.base))}
+                <span className="dot" style={{ background: seen('vein', colours) }} /> vein {pct(fovShare(c[2], v.map.width, v.base))}
               </div>
             )}
           </>
@@ -200,11 +204,15 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
         const mean = (points: Bifurcation[]) => (points.length ? `${(points.reduce((a, p) => a + p.angle, 0) / points.length).toFixed(0)}°` : '–');
         return (
           <>
+            <label className="scheck" title="AutoMorph's rule measures only gradable photos; RetiFlow measures every photo unless this is off">
+              <input type="checkbox" checked={data.params.measureAll !== false} onChange={(e) => studio.setParams(id, { measureAll: e.target.checked })} />
+              Measure anyway when not gradable
+            </label>
             <Thumb base={v?.base.preview} layers={v ? [branchCanvas(v, 'artery'), branchCanvas(v, 'vein')] : []} width={THUMB_W} height={THUMB_H} />
             {v && (
               <div className="meta">
-                <span className="dot" style={{ background: '#ff4b4b' }} /> {v.artery.points.length} · {mean(v.artery.points)}
-                <span className="dot" style={{ background: '#4b8bff' }} /> {v.vein.points.length} · {mean(v.vein.points)}
+                <span className="dot" style={{ background: seen('artery', colours) }} /> {v.artery.points.length} · {mean(v.artery.points)}
+                <span className="dot" style={{ background: seen('vein', colours) }} /> {v.vein.points.length} · {mean(v.vein.points)}
                 <span className="faint"> branching points · mean angle</span>
               </div>
             )}
@@ -400,7 +408,7 @@ export function FlowNode({ id, data, selected }: NodeProps<StudioNode>) {
       default:
         return null;
     }
-  }, [data.type, data.params, data.view, data.state, version, outputs, inputs, studio.samples]);
+  }, [data.type, data.params, data.view, data.state, version, outputs, inputs, studio.samples, colours]);
 
   const s = data.state;
   return (

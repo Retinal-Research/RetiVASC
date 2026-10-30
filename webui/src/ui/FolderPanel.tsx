@@ -1,9 +1,9 @@
 // The Photo folder node: choose a folder, follow the run, stop it, download one CSV for the folder.
 // The run itself is the canvas Run (src/engine/executor.ts); this file only shows it.
 
-import { useRef, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import type { Executor, FolderRun } from '../engine/executor';
-import { addFolder, FOLDER_LIMIT, getFolder } from '../engine/folder';
+import { addFolder, FOLDER_LIMIT, getFolder, sampleFolder } from '../engine/folder';
 import { useStudio } from './context';
 import { downloadCsv, recordsTable } from '../engine/table';
 import { ms, pct } from './format';
@@ -25,6 +25,10 @@ function counts(run: FolderRun | undefined, total: number) {
 
 export function FolderBody({ nodeId, params }: { nodeId: string; params: Record<string, unknown> }) {
   const studio = useStudio();
+  // until a folder is chosen, the sample folder that comes with the site
+  useEffect(() => {
+    if (params.folderId === undefined) void sampleFolder().then((folderId) => studio.setParams(nodeId, { folderId }), () => {});
+  }, [params.folderId, nodeId, studio]);
   const input = useRef<HTMLInputElement>(null);
   const folder = getFolder(params.folderId);
   const run = runOf(useFolderRun(studio.executor), nodeId, params.folderId);

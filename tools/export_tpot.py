@@ -1,10 +1,15 @@
 """Export the lab's TPOT fundus enhancement (Retinal-Research/TPOT-SR) to ONNX for the browser.
 
-    python tools/export_tpot.py WEIGHTS_DIR        (a Python with torch and Pillow; nothing else)
+    python tools/export_tpot.py WEIGHTS_DIR [ENHANCER]   (a Python with torch and Pillow; nothing else)
 
 WEIGHTS_DIR holds the two checkpoints from TPOT-SR's weights/ folder:
   best_SSIM.pth          the TPOT generator (model/model_LC.py, _NetG), a plain state_dict
   fusion_head_best.pth   the full-resolution fusion head (model/fusion_head.py, FusionRefineHead)
+
+ENHANCER, the default for the app, is the lab's EyePACS enhancer: TPOT fine-tuned on EyePACS with four
+small adapters (DA_wrapper.py, GeneratorWithFullAdapter), eyepacs_step3_aggressive_best.pt, whose
+"model" holds the generator under "base." and the adapters. It replaces best_SSIM.pth; the fusion head
+stays TPOT-SR's. Without ENHANCER the script exports TPOT-SR's own generator.
 
 They are read as tensors only (torch.load(weights_only=True)); TPOT-SR's own code is not run.
 The two networks are written again below with TPOT-SR's parameter names, so the checkpoints load
@@ -40,6 +45,7 @@ OUT = ROOT / "webui" / "public" / "models" / "tpot"
 REF = ROOT / "tools" / "tpot_ref"
 SAMPLE = ROOT / "webui" / "public" / "samples" / "cc0_left_3744.jpg"
 SOURCE = "Retinal-Research/TPOT-SR @ 0620afa (weights/best_SSIM.pth, weights/fusion_head_best.pth)"
+EYEPACS = "lab EyePACS enhancer (TPOT + adapters, eyepacs_step3_aggressive_best.pt, epoch {epoch}); fusion head from TPOT-SR @ 0620afa (weights/fusion_head_best.pth)"
 OPSET = 17
 LOW = 256      # TPOT works at 256 x 256
 HIGH = 2048    # the fusion head works at 2048 x 2048
@@ -174,6 +180,57 @@ class TPOT(nn.Module):
         return torch.clamp(self.sam12(fea, x), 0.0, 1.0)
 
 
+# ---------------------------------------------------------------- the EyePACS enhancer, as in DA_wrapper.py
+class Adapter(nn.Module):
+    """x + scale * (3x3, ReLU, 3x3, ReLU, 1x1); the dropout between them does nothing in eval."""
+
+    def __init__(self, c, scale=1.0):
+        super().__init__()
+        self.scale = scale
+        self.adapter = nn.Sequential(nn.Conv2d(c, c, 3, padding=1), nn.ReLU(), nn.Identity(),
+                                     nn.Conv2d(c, c, 3, padding=1), nn.ReLU(), nn.Identity(), nn.Conv2d(c, c, 1))
+
+    def forward(self, x):
+        return x + self.scale * self.adapter(x)
+
+
+class BottleneckAdapter(nn.Module):
+    """BottleneckAdapter(c, reduction=4, scale=0.5, use_deep=True)."""
+
+    def __init__(self, c, scale=0.5):
+        super().__init__()
+        h = max(4, c // 4)
+        self.scale = scale
+        self.adapter = nn.Sequential(nn.Conv2d(c, h, 1), nn.ReLU(), nn.Identity(), nn.Conv2d(h, h, 3, padding=1), nn.ReLU(),
+                                     nn.Identity(), nn.Conv2d(h, h, 3, padding=1), nn.ReLU(), nn.Conv2d(h, c, 1))
+
+    def forward(self, x):
+        return x + self.scale * self.adapter(x)
+
+
+class EyePACS(nn.Module):
+    """GeneratorWithFullAdapter(_NetG(), n_feat=80, scale_unetfeats=48): TPOT with adapters after encoder and
+    decoder level 3, on the decoder's output and on the image."""
+
+    def __init__(self):
+        super().__init__()
+        self.base = TPOT()
+        self.adapter_enc3 = BottleneckAdapter(176)
+        self.adapter_dec3 = BottleneckAdapter(176)
+        self.adapter_fea3_0 = Adapter(80)
+        self.adapter_image = Adapter(3)
+
+    def forward(self, x):
+        b, enc, dec = self.base, self.base.stage1_encoder, self.base.stage1_decoder
+        enc1 = enc.encoder_level1(b.shallow_feat1(x))
+        enc2 = enc.encoder_level2(enc.down12(enc1))
+        enc3 = self.adapter_enc3(enc.encoder_level3(enc.down23(enc2)))
+        dec3 = self.adapter_dec3(dec.decoder_level3(enc3))
+        dec2 = dec.decoder_level2(dec.up32(dec3, dec.skip_attn2(enc2)))
+        dec1 = self.adapter_fea3_0(dec.decoder_level1(dec.up21(dec2, dec.skip_attn1(enc1))))
+        return torch.clamp(self.adapter_image(b.sam12(dec1, x)), 0.0, 1.0)
+
+
 class Fusion(nn.Module):
     """FusionRefineHead: clamp(e + body(cat(x, e)), 0, 1) at 2048 x 2048; 5 layers of 3 x 3 convolutions."""
 
@@ -194,7 +251,7 @@ def load(path: Path) -> dict:
     for key in ("model", "state_dict"):
         if isinstance(sd, dict) and key in sd and isinstance(sd[key], dict):
             sd = sd[key]
-    return {k[5:] if k.startswith("base.") else k: v for k, v in sd.items() if not k.startswith("adapter_")}
+    return sd
 
 
 def for_browser(model: nn.Module) -> None:
@@ -215,16 +272,24 @@ def to_tensor(img: Image.Image) -> torch.Tensor:
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
+    if len(sys.argv) not in (2, 3):
         print(__doc__)
         return 2
     weights = Path(sys.argv[1])
+    enhancer = Path(sys.argv[2]) if len(sys.argv) == 3 else None
     torch.manual_seed(0)
     OUT.mkdir(parents=True, exist_ok=True)
     REF.mkdir(parents=True, exist_ok=True)
 
-    tpot = TPOT().eval()
-    tpot.load_state_dict(load(weights / "best_SSIM.pth"), strict=True)
+    if enhancer:
+        tpot = EyePACS().eval()
+        tpot.load_state_dict(load(enhancer), strict=True)
+        epoch = torch.load(enhancer, map_location="cpu", weights_only=True).get("epoch", "?")
+        source, label = EYEPACS.format(epoch=epoch), "TPOT fundus enhancement, EyePACS enhancer (lab model)"
+    else:
+        tpot = TPOT().eval()
+        tpot.load_state_dict(load(weights / "best_SSIM.pth"), strict=True)
+        source, label = SOURCE, "TPOT fundus enhancement (lab model, ISBI 2025)"
     fusion = Fusion().eval()
     fusion.load_state_dict(load(weights / "fusion_head_best.pth"), strict=True)
     print(f"TPOT {sum(p.numel() for p in tpot.parameters()):,} parameters; fusion head {sum(p.numel() for p in fusion.parameters()):,}")
@@ -264,11 +329,11 @@ def main() -> int:
 
     manifest = {
         "version": 1,
-        "source": SOURCE,
+        "source": source,
         "precision": "float32 (19 MB; small enough to keep full precision)",
         "models": {
             "tpot": {
-                "label": "TPOT fundus enhancement (lab model, ISBI 2025)",
+                "label": label,
                 "input": [1, 3, LOW, LOW],
                 "members": "one network, one pass at 256 x 256, input and output in [0, 1]",
                 "float32": True,

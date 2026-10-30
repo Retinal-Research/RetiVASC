@@ -86,7 +86,7 @@ const retivasc: WorkflowFile = {
   id: 'retivasc',
   section: 'pipeline',
   name: 'RetiVASC',
-  description: "Our pipeline: the lab's TPOT enhancement, then on the enhanced photo the quality grade, RRWNet's arteries, veins and vessels, the optic disc, 72 vascular features, RetiFlow's branching angles, and an AI report.",
+  description: "Our pipeline: the lab's TPOT enhancement, then on the enhanced photo the quality grade, RRWNet's arteries, veins and vessels, the optic disc, 72 vascular features, RetiFlow's branching angles, an AI report and a results table.",
   nodes: [
     photo(500),
     m0(500),
@@ -96,10 +96,11 @@ const retivasc: WorkflowFile = {
     { id: 'disc', type: 'automorph.disc', position: { x: 1040, y: 740 } },
     { id: 'm3', type: 'automorph.m3', position: { x: 1410, y: -20 } },
     { id: 'retiflow', type: 'retivasc.retiflow', position: { x: 1410, y: 480 } },
-    { id: 'view', type: 'view.overlay', position: { x: 1410, y: 860 } },
+    { id: 'view', type: 'view.overlay', position: { x: 1410, y: 900 } },
     { id: 'report', type: 'ai.report', position: { x: 1790, y: -20 } },
     { id: 'table', type: 'view.table', position: { x: 1790, y: 520 } },
   ],
+  // the AI report and the table take whatever finished: one step's failure does not stop them
   edges: [
     link('photo', 'image', 'm0', 'image'),
     link('m0', 'image', 'enhance', 'image'),
@@ -115,6 +116,7 @@ const retivasc: WorkflowFile = {
     link('m1', 'quality', 'retiflow', 'quality'),
     link('enhance', 'image', 'view', 'image'),
     link('m1', 'quality', 'view', 'quality'),
+    link('rrwnet', 'vessel', 'view', 'vessel'),
     link('rrwnet', 'av', 'view', 'av'),
     link('disc', 'disc', 'view', 'disc'),
     link('m1', 'quality', 'report', 'context'),

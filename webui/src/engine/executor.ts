@@ -261,15 +261,24 @@ export class Executor {
       // a folder step reads the run's records, not the last photo's values; but another folder step's result
       // (an AI report's table for the results table) is read as usual
       if (cohort && !connected.some((e) => SPECS[this.types.get(e.source) ?? '']?.cohort)) continue;
-      for (const edge of port.multi ? connected : connected.slice(0, 1)) {
-        if (cohort && !SPECS[this.types.get(edge.source) ?? '']?.cohort) continue;
-        const upstream = finished.get(edge.source);
-        if (upstream === undefined) { waiting ??= 'An earlier step did not finish'; continue; }
-        const value = this.records.get(edge.source)?.outputs[edge.sourceHandle];
-        if (!port.multi) inputs[port.id] = value;
-        else if (value) (many[port.id] ??= []).push({ from: edge.source, type: this.types.get(edge.source) ?? '', value });
-        parts.push(`${port.id}<${edge.source}.${edge.sourceHandle}#${upstream}`);
+      if (port.multi) {
+        // several sources at once (an AI report's context, a results table): those that finished, whatever failed
+        for (const edge of connected) {
+          if (cohort && !SPECS[this.types.get(edge.source) ?? '']?.cohort) continue;
+          const upstream = finished.get(edge.source);
+          if (upstream === undefined) continue;
+          const value = this.records.get(edge.source)?.outputs[edge.sourceHandle];
+          if (value) (many[port.id] ??= []).push({ from: edge.source, type: this.types.get(edge.source) ?? '', value });
+          parts.push(`${port.id}<${edge.source}.${edge.sourceHandle}#${upstream}`);
+        }
+        continue;
       }
+      const edge = connected[0];
+      if (cohort && !SPECS[this.types.get(edge.source) ?? '']?.cohort) continue;
+      const upstream = finished.get(edge.source);
+      if (upstream === undefined) { waiting ??= 'An earlier step did not finish'; continue; }
+      inputs[port.id] = this.records.get(edge.source)?.outputs[edge.sourceHandle];
+      parts.push(`${port.id}<${edge.source}.${edge.sourceHandle}#${upstream}`);
     }
     if (waiting) { onState(node.id, { status: 'blocked', message: waiting, version: this.version }); return { status: 'blocked' }; }
 
@@ -353,12 +362,16 @@ export class Executor {
           if (this.stopRequested) { stopped = true; break; }
           const r = await this.step(node, edges, photoFinished, onState, batch);
           this.count(tally, r);
-          if (r.status === 'error') { failed = `${SPECS[node.type]?.title ?? node.type}: ${r.message}`; break; }
+          // a failed step does not stop the photo: the steps that do not need it go on
+          if (r.status === 'error') failed ??= `${SPECS[node.type]?.title ?? node.type}: ${r.message}`;
         }
         if (stopped) break;
-        const record = this.collect(photo.path, steps, performance.now() - t, failed);
+        // whatever finished is kept; a photo where nothing gave numbers counts as failed (and is retried on resume)
+        const record = this.collect(photo.path, steps.filter((n) => photoFinished.has(n.id)), performance.now() - t, failed);
+        const numbers = Object.keys(record.quality).length + Object.keys(record.features).length + Object.keys(record.measures ?? {}).length;
+        if (failed && !numbers) record.status = 'error';
         const next = new Map(this.folderRun.records).set(photo.path, record);
-        if (!failed) void saveRecord(key, record);
+        if (record.status === 'done') void saveRecord(key, record);
         this.setFolder({ records: next, sessionMs: this.folderRun.sessionMs + record.ms, sessionDone: this.folderRun.sessionDone + 1 });
       }
     } finally {
@@ -369,9 +382,9 @@ export class Executor {
 
   /** The small results of one photo: every M1 grade and every M3 feature set downstream of the folder. */
   private collect(path: string, steps: GraphNode[], ms: number, error?: string): PhotoRecord {
-    const record: PhotoRecord = { path, status: error ? 'error' : 'done', ms, error, quality: {}, features: {}, measures: {} };
-    if (error) return record;
+    const record: PhotoRecord = { path, status: 'done', ms, error, quality: {}, features: {}, measures: {} };
     for (const n of steps) {
+      if (!this.records.has(n.id)) continue;
       for (const v of Object.values(this.records.get(n.id)?.outputs ?? {})) {
         if (v.kind === 'quality') record.quality[n.id] = v.result;
         if (v.kind === 'features') record.features[n.id] = { features: v.result.features, centredOn: v.result.centredOn, gradable: v.gradable };

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ComponentType } from 'react';
 import { ACCENTS, DEFAULT_APPEARANCE, isHex, type Appearance, type Theme, type ThemeMode } from './appearance';
+import { PRESETS, seen, setVesselColours, useVesselColours, type VesselColours } from './vesselColours';
 
 interface Props {
   appearance: Appearance;
@@ -119,8 +120,46 @@ export function AppearanceMenu({ appearance, theme, onChange }: Props) {
             />
             <button className="btn small" onClick={() => onChange(DEFAULT_APPEARANCE)}>Reset</button>
           </div>
+          <VesselColoursPicker />
         </div>
       )}
     </div>
+  );
+}
+
+const VESSEL_PARTS: Array<[keyof Pick<VesselColours, 'vessel' | 'artery' | 'vein' | 'crossing'>, string]> = [
+  ['vessel', 'Vessels'], ['artery', 'Arteries'], ['vein', 'Veins'], ['crossing', 'Crossings'],
+];
+
+/** The colours of the vessel layers in every view: RRWNet's (light added: arteries magenta, veins cyan),
+ *  AutoMorph's classic red and blue, or one's own. */
+function VesselColoursPicker() {
+  const c = useVesselColours();
+  const set = (patch: Partial<VesselColours>) => setVesselColours({ ...c, ...patch, preset: patch.preset ?? 'custom' });
+  return (
+    <>
+      <div className="pop-label">Vessel colours</div>
+      <div className="segmented">
+        <button className={c.preset === 'rrwnet' ? 'on' : ''} onClick={() => setVesselColours(PRESETS.rrwnet)}>RRWNet</button>
+        <button className={c.preset === 'automorph' ? 'on' : ''} onClick={() => setVesselColours(PRESETS.automorph)}>AutoMorph</button>
+        <button className={c.preset === 'custom' ? 'on' : ''} onClick={() => set({})}>Own</button>
+      </div>
+      <div className="vessel-colours">
+        {VESSEL_PARTS.map(([k, label]) => (
+          <label key={k} className="vc" title={c.mix && k !== 'vessel' ? `${label}: shown as ${seen(k, c)} on the vessels` : label}>
+            <span className="picker">
+              <input type="color" value={c[k]} onChange={(e) => set({ [k]: e.target.value })} />
+              <span style={{ background: c[k] }} />
+            </span>
+            <span>{label}</span>
+            <span className="vc-seen" style={{ background: seen(k, c) }} />
+          </label>
+        ))}
+      </div>
+      <label className="scheck">
+        <input type="checkbox" checked={c.mix} onChange={(e) => set({ mix: e.target.checked })} />
+        Add the light where layers overlap
+      </label>
+    </>
   );
 }

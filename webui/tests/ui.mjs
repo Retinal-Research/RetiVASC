@@ -27,15 +27,20 @@ await page.waitForFunction(() => window.__studio?.engine());
 
 // 1. open a local photo through the node's file input (a workflow runs only when Run is pressed)
 await page.click('.wf:has-text("Vessel segmentation")');
+// the photo step opens its photo by itself; Run after that, so the run below is the whole workflow
+await page.waitForFunction(() => window.__studio.states().photo?.status === 'done', null, { timeout: 60_000, polling: 100 });
 await page.click('.btn.primary');
+await page.waitForFunction(() => ['done', 'error'].includes(window.__studio.states().vessel?.status), null, { timeout: 300_000, polling: 200 });
 await idle();
 const file = join(import.meta.dirname, '..', 'public', 'samples', 'pd_cmv_retinitis.jpg');
 await page.setInputFiles('.react-flow__node[data-id="photo"] input[type=file]', file);
 // the file is read asynchronously before the node changes
 await page.waitForFunction(() => window.__studio.states().vessel.status === 'idle', null, { timeout: 10_000 }).catch(() => {});
 let s = await states();
-ok(s.vessel.status === 'idle' && s.vessel.message?.includes('Changed'), `after opening a file, downstream steps wait for Run (${s.vessel.message})`);
+ok(s.vessel.status === 'idle' && s.vessel.message?.includes('Changed'), `after opening a file, downstream steps wait for Run (${s.vessel.status}: ${s.vessel.message}; photo ${s.photo.status}: ${s.photo.message})`);
 await page.click('.btn.primary');
+// the photo step opens a new photo by itself; Run then waits for it, so wait for the step after it
+await page.waitForFunction(() => ['done', 'error'].includes(window.__studio.states().vessel.status), null, { timeout: 300_000, polling: 200 });
 await idle();
 s = await states();
 const photo = await page.evaluate(() => window.__studio.result('photo'));

@@ -816,7 +816,10 @@ button.sfile { background: none; cursor: pointer; text-align: left; font: inheri
 .how span { display: block; margin-top: 4px; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
 .share { width: min(980px, calc(100% - 32px)); margin: 40px auto 0; display: flex; gap: 20px; align-items: center; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: color-mix(in srgb, var(--panel) 70%, transparent); }
 .share p { margin: 0 0 12px; color: var(--muted); font-size: 13px; line-height: 1.5; }
-.qr { display: block; flex: none; border-radius: 8px; }
+.qr { display: block; flex: none; }
+.qr svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.qr .qr-chip { transition: transform 0.25s ease; transform-box: fill-box; transform-origin: center; }
+.qr:hover .qr-chip { transform: translateY(-0.5px) scale(1.07); }
 .qr-overlay { position: fixed; inset: 0; z-index: 2100; display: grid; place-items: center; background: rgba(4, 7, 11, 0.72); }
 .qr-card { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 26px 30px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line-2); box-shadow: var(--shadow-strong); text-align: center; }
 .qr-card h2 { margin: 0; font-size: 22px; }
@@ -1041,3 +1044,11 @@ button.sfile { background: none; cursor: pointer; text-align: left; font: inheri
 .launch-phone .linkbtn { margin-top: 10px; }
 .launch-skip { color: var(--faint); font-size: 12px; }
 @media (prefers-reduced-motion: reduce) { .launch, .launch-hint { transition: none; animation: none; } }
+
+
+/* vessel colours in the appearance menu */
+.vessel-colours { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; margin: 6px 0; }
+.vc { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); cursor: pointer; }
+.vc .picker { width: 22px; height: 22px; }
+.vc-seen { width: 10px; height: 10px; border-radius: 50%; margin-left: auto; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2); }
+.keys .dot, .meta .dot { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18); }

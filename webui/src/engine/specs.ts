@@ -29,6 +29,29 @@ export interface PortSpec {
 /** A vessel map covering less or more of the field of view than this is flagged (RetiFlow's fallback). */
 const VESSEL_SHARE: [number, number] = [0.02, 0.3];
 
+/** An artery/vein label map as RetiFlow's 8-bit AV3 map at 584: binary, 255 where the class is. */
+function binaryAv3(v: Extract<NodeValue, { kind: 'av' }>): Extract<NodeValue, { kind: 'avprob' }> {
+  const N = 584, labels = nearest(v.map.labels, v.map.width, N), data = new Uint8Array(N * N * 3);
+  for (let i = 0; i < N * N; i++) {
+    const l = labels[i];
+    if (!l) continue;
+    data[3 * i] = l === 1 || l === 3 ? 255 : 0;
+    data[3 * i + 1] = l === 2 || l === 3 ? 255 : 0;
+    data[3 * i + 2] = 255;
+  }
+  return { kind: 'avprob', size: N, data, timing: v.timing, base: v.base };
+}
+
+/** A square label map from one size to another, nearest neighbour. */
+function nearest(src: Uint8Array, n: number, N: number): Uint8Array {
+  const out = new Uint8Array(N * N);
+  for (let y = 0; y < N; y++) {
+    const sy = Math.min(n - 1, Math.floor(((y + 0.5) * n) / N));
+    for (let x = 0; x < N; x++) out[y * N + x] = src[sy * n + Math.min(n - 1, Math.floor(((x + 0.5) * n) / N))];
+  }
+  return out;
+}
+
 export const acceptsType = (port: PortSpec, type: PortType) => port.type === 'any' || port.type === type || !!port.accepts?.includes(type);
 
 export interface RunContext {
@@ -175,17 +198,27 @@ const specs: NodeSpec[] = [
     subtitle: 'Bifurcations of the arteries and the veins',
     group: 'retivasc',
     inputs: [
-      { id: 'maps', label: 'probability maps', type: 'avprob' },
+      // RRWNet's probability maps; an artery/vein map (VascX's, say) also works, as binary maps, if RRWNet fails
+      { id: 'maps', label: 'probability maps', type: 'avprob', accepts: ['av'] },
       { id: 'quality', label: 'grade', type: 'quality', optional: true },
     ],
     outputs: [{ id: 'angles', label: 'branching', type: 'bifurcations' }],
+    defaults: { measureAll: true },
     // Every photo is measured, gradable or not (Hao, 10-29), with fallbacks: a failure gives no branching
     // points and says why instead of stopping the run, and an implausible vessel map is flagged.
     async run(ctx) {
-      const maps = ctx.inputs.maps;
-      if (maps?.kind !== 'avprob') throw new Error('connect the probability maps of RRWNet');
+      const input = ctx.inputs.maps;
+      if (input?.kind !== 'avprob' && input?.kind !== 'av') throw new Error('connect the probability maps of RRWNet');
+      // an artery/vein map instead: binary AV3 at RetiFlow's 584 (arteries red, veins green, every vessel blue)
+      const maps = input.kind === 'avprob' ? input : binaryAv3(input);
+      const fromLabels = input.kind === 'av';
       const quality = ctx.inputs.quality;
       const gradable = quality?.kind === 'quality' ? quality.result.gradable : undefined;
+      const emptyLine = { points: [], centerline: new Uint8Array(maps.size * maps.size) };
+      if (gradable === false && ctx.params.measureAll === false) {
+        return { angles: { kind: 'bifurcations', size: maps.size, root: [maps.size / 2, maps.size / 2], artery: emptyLine, vein: emptyLine, ms: 0, base: maps.base, gradable,
+          failed: 'not gradable by AutoMorph’s rule, so not measured (tick “Measure anyway” to measure it)' } };
+      }
       let vessels = 0;
       for (let i = 2; i < maps.data.length; i += 3) if (maps.data[i] > 127) vessels++;
       const share = fovShare(vessels, maps.size, maps.base);
@@ -195,7 +228,8 @@ const specs: NodeSpec[] = [
       const empty = { points: [], centerline: new Uint8Array(maps.size * maps.size) };
       try {
         const out = await engine.call<RetiFlowOutput>({ op: 'retiflow', size: maps.size, av3: maps.data.slice() }, ctx.progress);
-        return { angles: { kind: 'bifurcations', size: maps.size, root: out.root, artery: out.artery, vein: out.vein, ms: out.ms, base: maps.base, gradable, warning } };
+        const note = fromLabels ? 'measured on binary artery/vein maps (another segmentation, as RRWNet’s maps were missing): angles may differ' : undefined;
+        return { angles: { kind: 'bifurcations', size: maps.size, root: out.root, artery: out.artery, vein: out.vein, ms: out.ms, base: maps.base, gradable, warning: warning ?? note } };
       } catch (e) {
         const failed = e instanceof Error ? e.message : String(e);
         return { angles: { kind: 'bifurcations', size: maps.size, root: [maps.size / 2, maps.size / 2], artery: empty, vein: empty, ms: 0, base: maps.base, gradable, warning, failed } };
@@ -299,9 +333,12 @@ const specs: NodeSpec[] = [
       const base = m0Input(ctx);
       const { vessel, av, disc, quality } = ctx.inputs;
       if (vessel?.kind !== 'vessel' || av?.kind !== 'av' || disc?.kind !== 'disc') throw new Error('connect the vessel, artery/vein and disc/cup steps');
-      if (vessel.size !== 912 || av.map.width !== 720 || disc.map.width !== 512) throw new Error('M3 needs the M2 maps of the full-size photo');
+      // M3 measures at AutoMorph's M2 sizes; maps from another segmentation (VascX as a fallback) are resampled
+      const vMask = vessel.size === 912 ? vessel.mask.slice() : nearest(vessel.mask, vessel.size, 912);
+      const avMap = av.map.width === 720 ? av.map.labels.slice() : nearest(av.map.labels, av.map.width, 720);
+      const dMap = disc.map.width === 512 ? disc.map.labels.slice() : nearest(disc.map.labels, disc.map.width, 512);
       const result = await engine.call<M3Output>(
-        { op: 'm3', vessel: vessel.mask.slice(), arteryVein: av.map.labels.slice(), discCup: disc.map.labels.slice(), radius: base.geometry.radius },
+        { op: 'm3', vessel: vMask, arteryVein: avMap, discCup: dMap, radius: base.geometry.radius },
         ctx.progress,
       );
       const gradable = quality?.kind === 'quality' ? quality.result.gradable : undefined;

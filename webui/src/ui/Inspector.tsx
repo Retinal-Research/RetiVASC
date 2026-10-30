@@ -8,11 +8,12 @@ import { DEFAULT_VIEW, useStudio } from './context';
 import { firstOutput, fovShare, type StudioNode } from './FlowNode';
 import { int, mb, ms, pct } from './format';
 import { ImageView } from './ImageView';
-import { BRANCH_LABEL, BRANCH_LEGEND, branchCanvas, countLabels, isLayer, LAYER_LABEL, layerCanvas, LEGEND, type BranchKind, type LayerKind, type LayerValue } from './render';
+import { BRANCH_LABEL, branchLegend, branchCanvas, countLabels, isLayer, LAYER_LABEL, layerCanvas, legend, type BranchKind, type LayerKind, type LayerValue } from './render';
 import { AnalysisView } from './AnalysisPanel';
 import { FolderInspector } from './FolderPanel';
 import { FeaturesView } from './FeaturesPanel';
 import { Markdown } from './Markdown';
+import { useVesselColours } from './vesselColours';
 import { TableView } from './TablePanel';
 import { QuotaBar, ReportProgress, ReportView } from './ReportPanel';
 import { ANALYSIS_STEPS, SheetProgress, SheetSummaryView } from './SheetPanel';
@@ -60,6 +61,7 @@ export function Inspector({ node }: { node?: StudioNode }) {
   const [opacity, setOpacity] = useState(DEFAULT_VIEW.opacity);
   const [hidden, setHidden] = useState<Partial<Record<LayerKind | BranchKind, boolean>>>({});
   const [before, setBefore] = useState(false);
+  useVesselColours();  // drawn again when the vessel colours change
 
   if (!node) {
     return (
@@ -289,7 +291,7 @@ export function Inspector({ node }: { node?: StudioNode }) {
           ))}
           <input className="slider" type="range" min={0} max={1} step={0.05} value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} title="Layer opacity" />
           <div className="keys">
-            {BRANCH_LEGEND.map(([label, color]) => (
+            {branchLegend().map(([label, color]) => (
               <span key={label}><span className="dot" style={{ background: color }} />{label}</span>
             ))}
           </div>
@@ -304,7 +306,7 @@ export function Inspector({ node }: { node?: StudioNode }) {
           ))}
           <input className="slider" type="range" min={0} max={1} step={0.05} value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} title="Layer opacity" />
           <div className="keys">
-            {layerValues.flatMap(([k]) => LEGEND[k]).map(([label, color]) => (
+            {layerValues.flatMap(([k]) => legend(k)).map(([label, color]) => (
               <span key={label}><span className="dot" style={{ background: color }} />{label}</span>
             ))}
           </div>

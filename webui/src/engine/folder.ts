@@ -24,11 +24,29 @@ let nextFolder = 1;
 
 /** Files from <input webkitdirectory>: the photos among them, sorted by path. */
 export function addFolder(files: File[]): string {
-  const photos = files
-    .filter((f) => PHOTO.test(f.name))
-    .map((file) => ({ path: file.webkitRelativePath || file.name, file }))
-    .sort((a, b) => a.path.localeCompare(b.path));
-  const name = files[0]?.webkitRelativePath.split('/')[0] || 'folder';
+  return addPhotos(files[0]?.webkitRelativePath.split('/')[0] || 'folder', files.map((file) => ({ path: file.webkitRelativePath || file.name, file })));
+}
+
+let samples: Promise<string> | undefined;
+
+/** The sample folder that comes with the site (samples.json entries with a folder), as a picked folder. */
+export function sampleFolder(): Promise<string> {
+  samples ??= (async () => {
+    const list = (await (await fetch(`${import.meta.env.BASE_URL}samples/samples.json`)).json()) as Array<{ file: string; folder?: string }>;
+    const items = list.filter((s) => s.folder);
+    const name = items[0]?.folder ?? 'samples';
+    const photos = await Promise.all(items.map(async (s) => {
+      const bytes = await (await fetch(`${import.meta.env.BASE_URL}${s.file}`)).blob();
+      const base = s.file.split('/').pop()!;
+      return { path: `${name}/${base}`, file: new File([bytes], base, { type: bytes.type, lastModified: 0 }) };
+    }));
+    return addPhotos(name, photos);
+  })();
+  return samples;
+}
+
+function addPhotos(name: string, items: FolderPhoto[]): string {
+  const photos = items.filter((p) => PHOTO.test(p.file.name)).sort((a, b) => a.path.localeCompare(b.path));
   const refused = !photos.length
     ? 'no photos (tif, jpg, png, bmp) in this folder'
     : photos.length > FOLDER_LIMIT

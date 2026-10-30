@@ -9,6 +9,8 @@ export interface Sample {
   license: string;
   author: string;
   source: string;
+  /** the sample folder it belongs to: the Photo folder step opens it until another folder is chosen */
+  folder?: string;
 }
 
 const uploads = new Map<string, { name: string; bytes: ArrayBuffer }>();
