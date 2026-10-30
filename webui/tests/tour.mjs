@@ -4,7 +4,7 @@
 import { chromium } from 'playwright-core';
 
 const browser = await chromium.launch({ channel: process.env.BROWSER_CHANNEL ?? 'chrome', headless: true, args: ['--enable-unsafe-webgpu'] });
-const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });  // the Tutorial button floats
 const problems = [];
 page.on('pageerror', (e) => problems.push(String(e)));
 let failed = 0;
@@ -47,7 +47,7 @@ await page.keyboard.press('Escape');
 ok((await card()).title === null, 'Escape closes it');
 
 // a first visit by a person: it opens by itself, and Skip ends it
-const person = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const person = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
 await person.addInitScript(() => Object.defineProperty(navigator, 'webdriver', { get: () => false }));
 await person.goto(URL);
 await person.waitForSelector('#tour-title', { timeout: 10_000 }).catch(() => {});

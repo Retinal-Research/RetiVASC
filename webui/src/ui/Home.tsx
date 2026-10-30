@@ -151,7 +151,10 @@ export function Home({ pipelines, missing, samples, onStart, appearance, theme, 
       </section>
 
       <section className="share">
-        <QrCode text={siteUrl()} size={128} />
+        <button className="qr-open" onClick={() => setQr(true)} title="Show the QR code full screen" aria-label="Show the QR code full screen">
+          <QrCode text={siteUrl()} size={128} />
+          <span className="qr-hint">Click to enlarge</span>
+        </button>
         <div>
           <h2>Share RetiVASC</h2>
           <p>Scan the code, or send the link to yourself or a colleague. It opens on any computer with an up-to-date browser; nothing to install.</p>

@@ -42,7 +42,7 @@ const STUDIO: TourStep[] = [
     body: 'Each box is one step. The photograph travels along the lines from left to right: it is enhanced, graded, its vessels are found and measured, and the results are written up.' },
   { view: 'studio', target: '.react-flow__node[data-id="photo"]', node: 'photo', title: 'Start with a photograph',
     body: 'A sample photograph is already chosen. To use your own, drop it on this box, or press its Open… button. It never leaves your computer.' },
-  { view: 'studio', target: '.topbar .btn.primary', title: 'Press Run',
+  { view: 'studio', target: '.runbar .btn.primary', title: 'Press Run',
     body: 'Every step then runs inside this browser, on your own computer. The first run downloads the models once; after that, Run starts straight away.' },
   { view: 'studio', target: '.inspector-cell', title: 'See each result',
     body: 'Click any box to see its result here at full size, with what it measured and how long it took. Scroll on the picture to zoom in.' },

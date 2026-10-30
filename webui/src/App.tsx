@@ -27,7 +27,7 @@ import { RemovableEdge } from './ui/RemovableEdge';
 import { Home } from './ui/Home';
 import { Inspector } from './ui/Inspector';
 import { DRAG_TYPE, Sidebar } from './ui/Sidebar';
-import { TopBar, type PreloadState } from './ui/TopBar';
+import { RunBar, TopBar, type PreloadState } from './ui/TopBar';
 import { Launch } from './ui/Launch';
 import { firstVisit, Tour, tourFrom, type TourStep, type TourView } from './ui/Tour';
 import { mb } from './ui/format';
@@ -41,7 +41,7 @@ import { llm } from './llm/llm';
 import { stopWriting } from './engine/report';
 import type { LlmManifest, LlmStatus } from './llm/protocol';
 import { Grip } from './ui/Grip';
-import { isNum, useRemembered } from './remember';
+import { isNum, recall, remember, useRemembered } from './remember';
 
 const nodeTypes = { studio: FlowNode };
 const edgeTypes = { removable: RemovableEdge };
@@ -94,6 +94,26 @@ function toNodes(wf: WorkflowFile): StudioNode[] {
   }));
 }
 
+/** A workflow's steps (their saved parameters only: no local files, no folder) and connections, to compare with its default. */
+function shape(wf: WorkflowFile): string {
+  const nodes = toNodes(wf).map((n) => {
+    const params = savedParams(n.data.params);
+    return [n.id, n.data.type, Math.round(n.position.x), Math.round(n.position.y), Object.keys(params).sort().map((k) => [k, params[k]])];
+  }).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  const edges = wf.edges.map((e) => `${e.source}.${e.sourceHandle}>${e.target}.${e.targetHandle}`).sort();
+  return JSON.stringify([nodes, edges]);
+}
+
+/** The parameters worth keeping in a file or in the browser: a local photo or folder cannot be. */
+function savedParams(p: Record<string, unknown>): Record<string, unknown> {
+  const params = { ...p };
+  if (typeof params.source === 'string' && !params.source.startsWith('sample:')) delete params.source;
+  delete params.folderId;
+  return params;
+}
+
+const isEdits = (v: unknown): v is Record<string, WorkflowFile> => !!v && typeof v === 'object' && !Array.isArray(v);
+
 /** A step and every step it needs, directly or not. */
 function upstream(edges: Edge[], start: string): Set<string> {
   const seen = new Set([start]);
@@ -140,6 +160,11 @@ export function App() {
   const [stopping, setStopping] = useState(false);
   const [lastRun, setLastRun] = useState<RunSummary>();
   const [name, setName] = useState(FIRST.name);
+  const nameRef = useRef(name);
+  nameRef.current = name;
+  // each library workflow as the person left it: switching away and back keeps their changes (with their photo, until the
+  // page closes), and the browser keeps them across visits; Reset goes back to the default
+  const kept = useRef(new Map(Object.entries(recall('workflow-edits', {}, isEdits))));
   const [view, setViewMode] = useState<View>(viewOf);
   // the launch screen while the engine starts, each time the canvas opens
   const [launching, setLaunching] = useState(() => viewOf() === 'studio');
@@ -243,11 +268,56 @@ export function App() {
     [flow, run, setEdges, setNodes],
   );
 
+  /** The canvas as it is now, as a workflow file (with its local photo when `files`). */
+  const current = useCallback((files: boolean): WorkflowFile => ({
+    format: 'retivasc-studio/1',
+    name: nameRef.current,
+    nodes: nodesRef.current.map((n) => ({ id: n.id, type: n.data.type, position: n.position, params: files ? { ...n.data.params } : savedParams(n.data.params) })),
+    edges: edgesRef.current.map((e) => ({ source: e.source, sourceHandle: e.sourceHandle ?? '', target: e.target, targetHandle: e.targetHandle ?? '' })),
+  }), []);
+
+  /** Open a library workflow as it was left; the one on the canvas is kept for later. */
+  const switchTo = useCallback((wf: WorkflowFile) => {
+    if (nodesRef.current.length && WORKFLOWS.some((w) => w.name === nameRef.current)) kept.current.set(nameRef.current, current(true));
+    const left = kept.current.get(wf.name);
+    load(left ? { ...wf, nodes: left.nodes, edges: left.edges } : wf);
+  }, [current, load]);
+
+  /** Back to the library's default of the workflow on the canvas. */
+  const reset = useCallback(() => {
+    const wf = WORKFLOWS.find((w) => w.name === nameRef.current);
+    if (!wf) return;
+    kept.current.delete(wf.name);
+    load(wf);
+  }, [load]);
+
+  // the browser keeps the changed library workflows (without local photos), for the next visit
+  const [edited, setEdited] = useState<string[]>([]);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const wf = WORKFLOWS.find((w) => w.name === name);
+      if (wf) {
+        const now = current(false);
+        if (shape(now) === shape(wf)) kept.current.delete(name);
+        else if (!kept.current.has(name) || shape(kept.current.get(name)!) !== shape(now)) kept.current.set(name, current(true));
+      }
+      const store: Record<string, WorkflowFile> = {};
+      for (const [k, f] of kept.current) {
+        const def = WORKFLOWS.find((w) => w.name === k);
+        const saved = { ...f, nodes: f.nodes.map((n) => ({ ...n, params: savedParams(n.params ?? {}) })) };
+        if (def && shape(saved) !== shape(def)) store[k] = saved;
+      }
+      remember('workflow-edits', Object.keys(store).length ? store : undefined);
+      setEdited(Object.keys(store));
+    }, 400);
+    return () => clearTimeout(t);
+  }, [nodes, edges, name, current]);
+
   useEffect(() => {
     void siteModels().then(setInstalled);
     loadSamples().then(setSamples, () => setSamples([]));
     void llm.manifest.then((m) => setLlmManifest(m ?? null));
-    load(FIRST);
+    switchTo(FIRST);
   }, []);
 
   // the engine starts with the canvas, behind the launch screen
@@ -360,12 +430,7 @@ export function App() {
     const file: WorkflowFile = {
       format: 'retivasc-studio/1',
       name,
-      nodes: nodesRef.current.map((n) => {
-        const params = { ...n.data.params };
-        if (typeof params.source === 'string' && !params.source.startsWith('sample:')) delete params.source; // files are not saved
-        delete params.folderId;
-        return { id: n.id, type: n.data.type, position: n.position, params };
-      }),
+      nodes: nodesRef.current.map((n) => ({ id: n.id, type: n.data.type, position: n.position, params: savedParams(n.data.params) })),  // files are not saved
       edges: edgesRef.current.map((e) => ({ source: e.source, sourceHandle: e.sourceHandle ?? '', target: e.target, targetHandle: e.targetHandle ?? '' })),
     };
     const url = URL.createObjectURL(new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' }));
@@ -514,7 +579,7 @@ export function App() {
   );
   // the tour goes from the home page to the canvas with the RetiVASC pipeline, as Start does, and zooms to
   // the step it explains
-  const tourView = useCallback((v: TourView) => { if (v === 'studio' && !running) load(FIRST); go(v); }, [running, load, go]);
+  const tourView = useCallback((v: TourView) => { if (v === 'studio' && !running && nameRef.current !== FIRST.name) switchTo(FIRST); go(v); }, [running, switchTo, go]);
   const tourFocus = useCallback((id?: string) => {
     void (id ? flow.fitView({ nodes: [{ id }], padding: 0.5, duration: 450, maxZoom: 1.1 }) : flow.fitView({ padding: 0.06, duration: 450, maxZoom: 1 }));
   }, [flow]);
@@ -533,7 +598,7 @@ export function App() {
     return (
       <>
         <Home pipelines={PIPELINES} missing={missing} samples={samples} appearance={appearance} theme={theme} onAppearance={setAppearance}
-              onStart={(wf) => { if (!running) load(wf); go('studio'); }} onTour={() => setTour(tourFrom('home'))} />
+              onStart={(wf) => { if (!running && wf.name !== nameRef.current) switchTo(wf); go('studio'); }} onTour={() => setTour(tourFrom('home'))} />
         {tutorial}
       </>
     );
@@ -543,8 +608,8 @@ export function App() {
     <>
     <StudioContext.Provider value={studio}>
       <div className="app" style={{ '--inspector-w': `${inspectorW}px` } as CSSProperties}>
-        <TopBar name={name} engine={engineInfo} engineError={engineError} gpu={gpu} onGpu={switchGpu} preload={preloadState} onPreload={() => void preload()} running={running} stopping={stopping} lastRun={lastRun} onRun={() => void run()} onStop={() => { setStopping(true); executor.stop(); stopWriting(); }} onSave={save} onOpen={(f) => void open(f)} appearance={appearance} theme={theme} onAppearance={setAppearance} account={account} onSignOut={() => void api.logout().finally(() => setAccount({ mode: 'signin' }))} onHome={() => go('home')} onTour={() => setTour(tourFrom('studio'))} />
-        <Sidebar current={name} onLoad={(wf) => load(wf)} onAdd={(t) => addNode(t)} server={account.mode === 'ready'} />
+        <TopBar name={name} engine={engineInfo} engineError={engineError} gpu={gpu} onGpu={switchGpu} running={running} preloading={preloadState.state === 'loading'} appearance={appearance} theme={theme} onAppearance={setAppearance} account={account} onSignOut={() => void api.logout().finally(() => setAccount({ mode: 'signin' }))} onHome={() => go('home')} onTour={() => setTour(tourFrom('studio'))} />
+        <Sidebar current={name} onLoad={(wf) => { if (wf.name !== name) switchTo(wf); }} edited={edited} onReset={reset} onAdd={(t) => addNode(t)} server={account.mode === 'ready'} onSave={save} onOpen={(f) => void open(f)} />
         <main className="canvas" onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} onDrop={onDrop}>
           <ReactFlow<StudioNode, Edge>
             nodes={nodes}
@@ -569,6 +634,8 @@ export function App() {
             <Controls showInteractive={false} />
             <MiniMap pannable zoomable nodeColor={(n) => `var(--g-${SPECS[(n.data as StudioNodeData).type]?.group ?? 'input'})`} maskColor="var(--mask)" />
           </ReactFlow>
+          <RunBar engine={engineInfo} preload={preloadState} onPreload={() => void preload()} running={running} stopping={stopping} lastRun={lastRun}
+                  onRun={() => void run()} onStop={() => { setStopping(true); executor.stop(); stopWriting(); }} />
         </main>
         <div className="inspector-cell">
           <Grip axis="x" sign={-1} value={inspectorW} min={300} max={inspectorMax} onChange={setInspectorW}
