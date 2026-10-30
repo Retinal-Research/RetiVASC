@@ -13,6 +13,14 @@ import { isPhone, QrCode, QrOverlay, ShareButtons, siteUrl } from './Share';
 
 const LAB = 'Geometry Systems Lab';
 const UNIVERSITY = 'Arizona State University';
+
+/** Where RetiVASC comes from, for anyone who wants to trace it: the site, the code, the models, the lab. */
+const LINKS: Array<[string, string]> = [
+  ['Website', 'https://retinal-research.github.io/RetiVASC/'],
+  ['GitHub', 'https://github.com/Retinal-Research/RetiVASC'],
+  ['Models on Hugging Face', 'https://huggingface.co/hwang714'],
+  ['Geometry Systems Lab', 'https://gsl.lab.asu.edu/'],
+];
 export const SUBTITLE = 'Retinal Vascular Phenotype Platform for Brain Health';
 
 /** Small line icons for the pipeline cards (currentColor). */
@@ -88,6 +96,9 @@ export function Home({ pipelines, missing, samples, onStart, appearance, theme, 
         <h1>RetiVASC</h1>
         <p className="hero-sub">{SUBTITLE}</p>
         <p className="hero-lab">{LAB} · {UNIVERSITY}</p>
+        <nav className="hero-links" aria-label="Project links">
+          {LINKS.map(([label, href]) => <a key={href} href={href} target="_blank" rel="noreferrer">{label} ↗</a>)}
+        </nav>
         <p className="hero-what">
           RetiVASC enhances colour fundus photographs and measures their retinal blood vessels: image quality, arteries, veins and vessels,
           the optic disc, branching angles and 72 vascular phenotypes. An LLM writes up the measurements as a report. One photograph or a
@@ -163,7 +174,8 @@ export function Home({ pipelines, missing, samples, onStart, appearance, theme, 
       </section>
 
       <footer className="home-foot">
-        <span>© {new Date().getFullYear()} {LAB}, {UNIVERSITY}</span>
+        <span>© {new Date().getFullYear()} <a href="https://gsl.lab.asu.edu/" target="_blank" rel="noreferrer">{LAB}</a>, {UNIVERSITY}</span>
+        <span>{LINKS.slice(0, 3).map(([label, href], i) => <span key={href}>{i ? ' · ' : ''}<a href={href} target="_blank" rel="noreferrer">{label}</a></span>)}</span>
         <span>
           Models: <a href="https://github.com/rmaphoh/AutoMorph" target="_blank" rel="noreferrer">AutoMorph</a> (Apache-2.0)
           {' · '}<a href="https://github.com/j-morano/rrwnet" target="_blank" rel="noreferrer">RRWNet</a> (weights CC BY-NC 4.0)

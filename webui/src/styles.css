@@ -810,6 +810,9 @@ button.sfile { background: none; cursor: pointer; text-align: left; font: inheri
 .hero h1 { font-size: 46px; line-height: 1.05; margin: 14px 0 6px; letter-spacing: -0.01em; }
 .hero-sub { font-size: 20px; margin: 0; color: var(--accent-text); font-weight: 600; }
 .hero-lab { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+.hero-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 12px 0 0; }
+.hero-links a { padding: 4px 11px; border: 1px solid var(--line-2); border-radius: 999px; color: var(--accent-text); font-size: 12.5px; font-weight: 600; text-decoration: none; }
+.hero-links a:hover { border-color: color-mix(in oklab, var(--accent) 55%, var(--line-2)); background: color-mix(in oklab, var(--accent) 10%, transparent); }
 .hero-what { max-width: 640px; margin: 18px 0 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
 .strip { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; width: min(820px, 100%); margin: 28px 0 8px; }
 .strip img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 50%; display: block; background: #000;
