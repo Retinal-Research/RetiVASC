@@ -7,6 +7,7 @@ import { ms } from './format';
 import { SUBTITLE } from './Home';
 import { Logo } from './Logo';
 import type { AccountState } from './Login';
+import { Hints } from './Hints';
 import { TourButton } from './Tour';
 
 /** The Preload button: the models the workflow uses, loaded before Run so that Run starts at once. */
@@ -22,17 +23,8 @@ interface Props {
   engineError?: string;
   gpu: GpuChoice;
   onGpu: (gpu: GpuChoice) => void;
-  preload: PreloadState;
-  onPreload: () => void;
   running: boolean;
-  /** Stop was pressed; the step that is running finishes first */
-  stopping: boolean;
-  lastRun?: RunSummary;
-  onRun: () => void;
-  /** stop after the step that is running (a folder run keeps the photos it finished) */
-  onStop: () => void;
-  onSave: () => void;
-  onOpen: (file: File) => void;
+  preloading: boolean;
   appearance: Appearance;
   theme: Theme;
   onAppearance: (a: Appearance) => void;
@@ -44,7 +36,7 @@ interface Props {
   onTour: () => void;
 }
 
-export function TopBar({ name, engine, engineError, gpu, onGpu, preload, onPreload, running, stopping, lastRun, onRun, onStop, onSave, onOpen, appearance, theme, onAppearance, account, onSignOut, onHome, onTour }: Props) {
+export function TopBar({ name, engine, engineError, gpu, onGpu, running, preloading, appearance, theme, onAppearance, account, onSignOut, onHome, onTour }: Props) {
   return (
     <header className="topbar">
       <button className="brand" onClick={onHome} title="Home page">
@@ -55,41 +47,9 @@ export function TopBar({ name, engine, engineError, gpu, onGpu, preload, onPrelo
         </div>
       </button>
       <div className="wf-current" title={name}>{name}</div>
-      <div className="actions">
-        <button className="btn primary" onClick={onRun} disabled={running || !engine} title="Run (Ctrl+Enter)">
-          {running ? <span className="spinner" /> : <span className="play" />}
-          {running ? 'Running…' : 'Run'}
-        </button>
-        {running && (
-          <button className="btn danger" onClick={onStop} disabled={stopping} title="Stop after the step that is running">
-            <span className="stopsq" />{stopping ? 'Stopping…' : 'Stop'}
-          </button>
-        )}
-        {!running && preload.state !== 'none' && (
-          <button className={`btn preload ${preload.state}`} onClick={onPreload} disabled={preload.state !== 'needed' || !engine} title={preload.title}>
-            {preload.state === 'loading' ? <span className="spinner" /> : <span className={preload.state === 'ready' ? 'tick' : 'down'} aria-hidden="true" />}
-            {preload.label}
-          </button>
-        )}
-        {lastRun && !running && (
-          <span className={`lastrun ${lastRun.errors ? 'bad' : lastRun.blocked ? 'warn' : ''}`}>
-            {lastRun.errors
-              ? `${lastRun.errors} step${lastRun.errors > 1 ? 's' : ''} failed`
-              : lastRun.blocked
-                ? `${lastRun.blocked} step${lastRun.blocked > 1 ? 's' : ''} not connected`
-                : lastRun.ran
-                  ? `Finished in ${ms(lastRun.ms)}`
-                  : 'Nothing changed'}
-          </span>
-        )}
-        <button className="btn" onClick={onSave} title="Download this workflow as a file">Save</button>
-        <label className="btn" title="Open a saved workflow file">
-          Open
-          <input type="file" accept=".json,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) onOpen(f); e.target.value = ''; }} />
-        </label>
-      </div>
+      <Hints />
       <div className="status">
-        <ComputeMenu engine={engine} engineError={engineError} gpu={gpu} running={running || preload.state === 'loading'} onGpu={onGpu} />
+        <ComputeMenu engine={engine} engineError={engineError} gpu={gpu} running={running || preloading} onGpu={onGpu} />
         {account.mode === 'ready' ? (
           <span className="private" title="Browser steps run in this tab; server steps run on the RetiVASC server">
             {account.account.mode === 'open'
@@ -103,5 +63,52 @@ export function TopBar({ name, engine, engineError, gpu, onGpu, preload, onPrelo
         <AppearanceMenu appearance={appearance} theme={theme} onChange={onAppearance} />
       </div>
     </header>
+  );
+}
+
+interface RunProps {
+  engine?: EngineInfo;
+  preload: PreloadState;
+  onPreload: () => void;
+  running: boolean;
+  /** Stop was pressed; the step that is running finishes first */
+  stopping: boolean;
+  lastRun?: RunSummary;
+  onRun: () => void;
+  /** stop after the step that is running (a folder run keeps the photos it finished) */
+  onStop: () => void;
+}
+
+/** Run, Stop, Preload and how the last run went: floating at the top centre of the canvas. */
+export function RunBar({ engine, preload, onPreload, running, stopping, lastRun, onRun, onStop }: RunProps) {
+  return (
+    <div className="runbar">
+      <button className="btn primary" onClick={onRun} disabled={running || !engine} title="Run (Ctrl+Enter)">
+        {running ? <span className="spinner" /> : <span className="play" />}
+        {running ? 'Running…' : 'Run'}
+      </button>
+      {running && (
+        <button className="btn danger" onClick={onStop} disabled={stopping} title="Stop after the step that is running">
+          <span className="stopsq" />{stopping ? 'Stopping…' : 'Stop'}
+        </button>
+      )}
+      {!running && preload.state !== 'none' && (
+        <button className={`btn preload ${preload.state}`} onClick={onPreload} disabled={preload.state !== 'needed' || !engine} title={preload.title}>
+          {preload.state === 'loading' ? <span className="spinner" /> : <span className={preload.state === 'ready' ? 'tick' : 'down'} aria-hidden="true" />}
+          {preload.label}
+        </button>
+      )}
+      {lastRun && !running && (
+        <span className={`lastrun ${lastRun.errors ? 'bad' : lastRun.blocked ? 'warn' : ''}`}>
+          {lastRun.errors
+            ? `${lastRun.errors} step${lastRun.errors > 1 ? 's' : ''} failed`
+            : lastRun.blocked
+              ? `${lastRun.blocked} step${lastRun.blocked > 1 ? 's' : ''} not connected`
+              : lastRun.ran
+                ? `Finished in ${ms(lastRun.ms)}`
+                : 'Nothing changed'}
+        </span>
+      )}
+    </div>
   );
 }

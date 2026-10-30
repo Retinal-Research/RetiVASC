@@ -13,6 +13,14 @@ interface Props {
   onAdd: (type: string) => void;
   /** signed in to a RetiVASC server: show its steps and the user's jobs */
   server: boolean;
+  /** download the workflow on the canvas as a file */
+  onSave: () => void;
+  /** open a saved workflow file */
+  onOpen: (file: File) => void;
+  /** the library workflows changed from their default */
+  edited: string[];
+  /** put the workflow on the canvas back to its default */
+  onReset: () => void;
 }
 
 /** Skills by section: the lab's own modules, then each pipeline's steps under one heading. */
@@ -51,18 +59,29 @@ function Fold({ id, title, count, open: initial = false, sub = false, children }
   );
 }
 
-export function Sidebar({ current, onLoad, onAdd, server }: Props) {
+export function Sidebar({ current, onLoad, onAdd, server, onSave, onOpen, edited, onReset }: Props) {
   const sheet = useSheet(server);
   const groupShown = (g: NodeGroup) => (server || (g !== 'server' && g !== 'study')) && (sheet || g !== 'study');
   const needsServer = (wf: WorkflowFile) => wf.nodes.some((n) => n.type.startsWith('server.') || n.type.startsWith('study.'));
   const shown = (wf: WorkflowFile) =>
     (server || !needsServer(wf)) && wf.nodes.every((n) => groupShown(SPEC_LIST.find((s) => s.type === n.type)?.group ?? 'input'));
-  const entry = (wf: WorkflowFile) => (
-    <button key={wf.name} className={`wf ${current === wf.name ? 'active' : ''}`} onClick={() => onLoad(wf)}>
-      <span className="wf-name">{wf.name}</span>
-      <span className="wf-desc">{wf.description}</span>
-    </button>
-  );
+  const entry = (wf: WorkflowFile) => {
+    const changed = edited.includes(wf.name);
+    return (
+      <div key={wf.name} className="wf-wrap">
+        <button className={`wf ${current === wf.name ? 'active' : ''}`} onClick={() => onLoad(wf)}>
+          <span className="wf-name">{wf.name}{changed && <span className="wf-changed" title="Changed from the default">edited</span>}</span>
+          <span className="wf-desc">{wf.description}</span>
+        </button>
+        {current === wf.name && (
+          <button className="wf-reset" onClick={onReset} disabled={!changed}
+                  title={changed ? 'Put this workflow back as it was: its steps, settings and connections' : 'This workflow is as it was'}>
+            <span aria-hidden="true">↺</span> Reset
+          </button>
+        )}
+      </div>
+    );
+  };
   const listed = WORKFLOWS.filter(shown);
   const singles = listed.filter((wf) => wf.section === 'single');
   const onServer = listed.filter((wf) => wf.section === 'server');
@@ -71,7 +90,14 @@ export function Sidebar({ current, onLoad, onAdd, server }: Props) {
     <aside className="sidebar">
       {/* the pipelines are what most people want, so they never fold away */}
       <section>
-        <h3>Pipeline library</h3>
+        <div className="side-head">
+          <h3>Workflow</h3>
+          <button className="btn side-file" onClick={onSave} title="Download this workflow as a file"><span aria-hidden="true">⤓</span>Save</button>
+          <label className="btn side-file" title="Open a saved workflow file">
+            <span aria-hidden="true">⤒</span>Open
+            <input type="file" accept=".json,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) onOpen(f); e.target.value = ''; }} />
+          </label>
+        </div>
         {listed.filter((wf) => wf.section === 'pipeline' || !wf.section).map(entry)}
       </section>
       {singles.length > 0 && <Fold id="singles" title="Single steps" count={singles.length}>{singles.map(entry)}</Fold>}

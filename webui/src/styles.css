@@ -171,8 +171,10 @@ code { font-family: var(--mono); font-size: 11.5px; }
   max-width: 280px;
 }
 .actions { display: flex; align-items: center; gap: 8px; }
-.status { margin-left: auto; display: flex; align-items: center; gap: 14px; min-width: 0; }
-.private { color: var(--faint); font-size: 11.5px; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.status { margin-left: auto; flex: none; display: flex; align-items: center; gap: 14px; min-width: 0; }
+.private { color: var(--faint); font-size: 11.5px; white-space: nowrap; min-width: 0; max-width: 230px; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 1560px) { .topbar .private { display: none; } }
+@media (max-width: 1000px) { .hints { display: none; } }
 .status > :not(.private) { flex-shrink: 0; }
 .engine {
   display: inline-flex;
@@ -214,6 +216,21 @@ button.engine:hover { border-color: var(--line-strong); }
 .engine.bad .sdot { background: var(--bad); }
 .engine.wait .sdot { background: var(--muted); animation: pulse 1.2s infinite; }
 .lastrun { color: var(--muted); font-size: 12px; white-space: nowrap; }
+/* Run, Stop and Preload float at the top centre of the canvas */
+.runbar { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 5; display: flex; align-items: center; gap: 8px;
+  padding: 6px; border: 1px solid var(--line-2); border-radius: 999px; background: color-mix(in srgb, var(--panel) 88%, transparent);
+  backdrop-filter: blur(8px); box-shadow: var(--shadow); white-space: nowrap; }
+.runbar .btn { border-radius: 999px; }
+.runbar .btn.primary { padding: 0 22px; }
+.runbar .lastrun { padding-right: 10px; }
+/* the tips in the top bar */
+.hints { flex: 1 1 300px; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 8px; height: 32px; padding: 0 8px;
+  border: 0; background: none; color: var(--muted); font: inherit; font-size: 12.5px; cursor: pointer; overflow: hidden; }
+.hints-tag { flex: none; padding: 2px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--accent-text); background: color-mix(in oklab, var(--accent) 14%, transparent); }
+.hints-text { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: hint-in 0.45s ease-out; }
+.hints:hover .hints-text { color: var(--text); }
+@keyframes hint-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .lastrun.bad { color: var(--bad); }
 .lastrun.warn { color: var(--warn); }
 
@@ -258,6 +275,19 @@ button.engine:hover { border-color: var(--line-strong); }
   padding: 14px 12px 24px;
 }
 .sidebar section + section { margin-top: 20px; }
+.wf-wrap { position: relative; }
+.wf-wrap .wf.active { padding-right: 70px; }
+.wf-reset { position: absolute; top: 8px; right: 8px; display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px;
+  border: 1px solid var(--line-2); border-radius: 999px; background: var(--panel); color: var(--muted); font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; }
+.wf-reset:hover:not(:disabled) { color: var(--accent-text); border-color: color-mix(in oklab, var(--accent) 55%, var(--line-2)); }
+.wf-reset:disabled { opacity: 0.45; cursor: default; }
+.wf-changed { margin-left: 6px; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 600; vertical-align: 1px;
+  color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.side-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.sidebar .side-head h3 { margin: 0 4px 0 0; }
+.side-file { flex: 1 1 0; min-width: 0; padding: 0 8px; justify-content: center; gap: 6px; height: 32px; font-weight: 650; color: var(--accent-text);
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--line-2)); background: color-mix(in oklab, var(--accent) 10%, var(--panel-2)); }
+.side-file:hover { background: color-mix(in oklab, var(--accent) 18%, var(--panel-2)); }
 .sidebar h3, .isec h3 {
   margin: 0 0 8px;
   font-size: 11px;
@@ -816,6 +846,11 @@ button.sfile { background: none; cursor: pointer; text-align: left; font: inheri
 .how span { display: block; margin-top: 4px; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
 .share { width: min(980px, calc(100% - 32px)); margin: 40px auto 0; display: flex; gap: 20px; align-items: center; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: color-mix(in srgb, var(--panel) 70%, transparent); }
 .share p { margin: 0 0 12px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.qr-open { padding: 0; border: 0; background: none; cursor: zoom-in; border-radius: 10px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; transition: transform .15s; }
+.qr-hint { font-size: 12px; line-height: 1; color: var(--accent); font-weight: 600; }
+.qr-open:hover .qr-hint { text-decoration: underline; }
+.qr-open:hover { transform: scale(1.04); }
+.qr-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .qr { display: block; flex: none; }
 .qr svg { width: 100%; height: 100%; display: block; overflow: visible; }
 .qr .qr-chip { transition: transform 0.25s ease; transform-box: fill-box; transform-origin: center; }
@@ -956,10 +991,17 @@ button.sfile { background: none; cursor: pointer; text-align: left; font: inheri
 .edge-x:hover { background: var(--stop); border-color: var(--stop); color: #fff; }
 
 /* ---------------------------------------------------------------- the tutorial */
-.tour-btn { gap: 6px; padding: 0 11px 0 6px; border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--accent-text);
-  border-color: color-mix(in oklab, var(--accent) 45%, var(--line-2)); background: color-mix(in oklab, var(--accent) 10%, var(--panel-2)); }
-.tour-btn:hover { background: color-mix(in oklab, var(--accent) 18%, var(--panel-2)); }
-.tour-q { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: var(--accent-ink);
+.tour-btn { gap: 6px; padding: 0 13px 0 6px; border-radius: 999px; font-size: 12.5px; font-weight: 700; color: var(--accent-ink);
+  border-color: transparent; background: var(--accent);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 45%, transparent);
+  animation: tour-float 3.2s ease-in-out infinite; transition: transform .15s, box-shadow .15s, filter .15s; }
+.tour-btn:hover { animation-play-state: paused; transform: translateY(-3px); filter: brightness(1.08);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 55%, transparent); }
+@keyframes tour-float {
+  0%, 100% { transform: translateY(0); box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 40%, transparent); }
+  50% { transform: translateY(-3px); box-shadow: 0 9px 20px color-mix(in srgb, var(--accent) 30%, transparent); }
+}
+.tour-q { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--accent-ink); color: var(--accent);
   font-size: 12px; font-weight: 800; line-height: 1; }
 .home-tools { display: flex; align-items: center; gap: 10px; }
 
@@ -1052,3 +1094,5 @@ button.sfile { background: none; cursor: pointer; text-align: left; font: inheri
 .vc .picker { width: 22px; height: 22px; }
 .vc-seen { width: 10px; height: 10px; border-radius: 50%; margin-left: auto; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2); }
 .keys .dot, .meta .dot { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18); }
+
+@media (prefers-reduced-motion: reduce) { .tour-btn, .hints-text { animation: none; } }
