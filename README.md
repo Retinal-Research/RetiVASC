@@ -135,7 +135,7 @@ RRWNet ([j-morano/rrwnet](https://github.com/j-morano/rrwnet), MIT; Morano, Ares
 
 RetiFlow is the lab's ([Retinal-Research/RetiFlow](https://github.com/Retinal-Research/RetiFlow), MIT). Its port in `webui/src/retiflow` includes parts of scikit-image (BSD); `webui/src/retiflow/NOTICE.md` keeps both notices.
 
-TPOT is the lab's model ([Retinal-Research/TPOT-SR](https://github.com/Retinal-Research/TPOT-SR)). `tools/export_tpot.py` turns its two checkpoints into the ONNX files the browser runs. The TPOT-SR repository does not state a licence yet.
+TPOT is the lab's model ([Retinal-Research/TPOT-SR](https://github.com/Retinal-Research/TPOT-SR)). `tools/export_tpot.py` turns its two checkpoints into the ONNX files the browser runs; it can also export the lab's adapter-tuned TPOT (`eyepacs_step3_aggressive_best.pt`) in place of the generator. The TPOT-SR repository does not state a licence yet.
 
 Parts of the code and documentation were written with the help of Claude, an AI assistant by Anthropic.
 
